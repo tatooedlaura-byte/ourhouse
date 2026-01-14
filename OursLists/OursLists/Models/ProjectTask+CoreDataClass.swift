@@ -1,8 +1,8 @@
 import Foundation
 import CoreData
 
-@objc(Task)
-public class Task: NSManagedObject {
+@objc(ProjectTask)
+public class ProjectTask: NSManagedObject {
     enum Priority: Int16, CaseIterable {
         case low = 0
         case medium = 1
@@ -57,9 +57,9 @@ public class Task: NSManagedObject {
     }
 }
 
-extension Task {
-    @nonobjc public class func fetchRequest() -> NSFetchRequest<Task> {
-        return NSFetchRequest<Task>(entityName: "Task")
+extension ProjectTask {
+    @nonobjc public class func fetchRequest() -> NSFetchRequest<ProjectTask> {
+        return NSFetchRequest<ProjectTask>(entityName: "ProjectTask")
     }
 
     @NSManaged public var id: UUID?
@@ -73,4 +73,4 @@ extension Task {
     @NSManaged public var project: Project?
 }
 
-extension Task: Identifiable {}
+extension ProjectTask: Identifiable {}

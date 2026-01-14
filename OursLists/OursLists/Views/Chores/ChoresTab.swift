@@ -415,13 +415,15 @@ struct EditChoreSheet: View {
     }
 }
 
-#Preview {
-    let context = PersistenceController.preview.container.viewContext
-    let space = Space(context: context)
-    space.id = UUID()
-    space.name = "Our Home"
+struct ChoresTab_Previews: PreviewProvider {
+    static var previews: some View {
+        let context = PersistenceController.preview.container.viewContext
+        let space = Space(context: context)
+        space.id = UUID()
+        space.name = "Our Home"
 
-    return ChoresTab(space: space)
-        .environment(\.managedObjectContext, context)
-        .environmentObject(CloudKitSharingService.shared)
+        return ChoresTab(space: space)
+            .environment(\.managedObjectContext, context)
+            .environmentObject(CloudKitSharingService.shared)
+    }
 }

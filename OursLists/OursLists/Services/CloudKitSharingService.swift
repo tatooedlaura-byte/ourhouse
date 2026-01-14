@@ -62,15 +62,8 @@ class CloudKitSharingService: NSObject, ObservableObject {
 
     // MARK: - Create Share for Space
     func createShare(for space: Space, in context: NSManagedObjectContext) async throws -> CKShare {
-        let persistenceController = PersistenceController.shared
-
-        // Get the persistent store for the space
-        guard let store = context.persistentStoreCoordinator?.persistentStores.first else {
-            throw SharingError.noPersistentStore
-        }
-
         // Create share using NSPersistentCloudKitContainer
-        let (_, share, _) = try await persistenceController.container.share(
+        let (_, share, _) = try await PersistenceController.shared.container.share(
             [space],
             to: nil
         )
@@ -171,7 +164,7 @@ class CloudKitSharingService: NSObject, ObservableObject {
         if let share = shares[space.objectID] {
             try await PersistenceController.shared.container.purgeObjectsAndRecordsInZone(
                 with: share.recordID.zoneID,
-                in: PersistenceController.shared.container.persistentStoreCoordinator!.persistentStores.first!
+                in: PersistenceController.shared.container.persistentStoreCoordinator.persistentStores.first!
             )
         }
 
@@ -231,23 +224,6 @@ enum SharingError: LocalizedError {
             return "Failed to create share"
         case .notSignedIn:
             return "Please sign in to iCloud"
-        }
-    }
-}
-
-// MARK: - View Controller Representable for Sharing
-struct CloudSharingSheet: UIViewControllerRepresentable {
-    let space: Space
-    @EnvironmentObject var sharingService: CloudKitSharingService
-
-    func makeUIViewController(context: Context) -> UIViewController {
-        let controller = UIViewController()
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
-        Task {
-            await sharingService.presentSharingUI(for: space, from: uiViewController)
         }
     }
 }

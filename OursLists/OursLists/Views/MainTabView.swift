@@ -27,15 +27,17 @@ struct MainTabView: View {
     }
 }
 
-#Preview {
-    let context = PersistenceController.preview.container.viewContext
-    let space = Space(context: context)
-    space.id = UUID()
-    space.name = "Our Home"
-    space.createdAt = Date()
+struct MainTabView_Previews: PreviewProvider {
+    static var previews: some View {
+        let context = PersistenceController.preview.container.viewContext
+        let space = Space(context: context)
+        space.id = UUID()
+        space.name = "Our Home"
+        space.createdAt = Date()
 
-    return MainTabView(space: space)
-        .environment(\.managedObjectContext, context)
-        .environmentObject(PersistenceController.preview)
-        .environmentObject(CloudKitSharingService.shared)
+        return MainTabView(space: space)
+            .environment(\.managedObjectContext, context)
+            .environmentObject(PersistenceController.preview)
+            .environmentObject(CloudKitSharingService.shared)
+    }
 }

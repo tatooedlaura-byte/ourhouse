@@ -167,13 +167,15 @@ struct AddGroceryListSheet: View {
     }
 }
 
-#Preview {
-    let context = PersistenceController.preview.container.viewContext
-    let space = Space(context: context)
-    space.id = UUID()
-    space.name = "Our Home"
+struct GroceriesTab_Previews: PreviewProvider {
+    static var previews: some View {
+        let context = PersistenceController.preview.container.viewContext
+        let space = Space(context: context)
+        space.id = UUID()
+        space.name = "Our Home"
 
-    return GroceriesTab(space: space)
-        .environment(\.managedObjectContext, context)
-        .environmentObject(CloudKitSharingService.shared)
+        return GroceriesTab(space: space)
+            .environment(\.managedObjectContext, context)
+            .environmentObject(CloudKitSharingService.shared)
+    }
 }

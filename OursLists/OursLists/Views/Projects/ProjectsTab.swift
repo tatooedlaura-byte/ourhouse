@@ -238,13 +238,15 @@ struct AddProjectSheet: View {
     }
 }
 
-#Preview {
-    let context = PersistenceController.preview.container.viewContext
-    let space = Space(context: context)
-    space.id = UUID()
-    space.name = "Our Home"
+struct ProjectsTab_Previews: PreviewProvider {
+    static var previews: some View {
+        let context = PersistenceController.preview.container.viewContext
+        let space = Space(context: context)
+        space.id = UUID()
+        space.name = "Our Home"
 
-    return ProjectsTab(space: space)
-        .environment(\.managedObjectContext, context)
-        .environmentObject(CloudKitSharingService.shared)
+        return ProjectsTab(space: space)
+            .environment(\.managedObjectContext, context)
+            .environmentObject(CloudKitSharingService.shared)
+    }
 }

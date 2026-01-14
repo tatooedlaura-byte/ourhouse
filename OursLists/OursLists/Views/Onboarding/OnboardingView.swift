@@ -1,5 +1,4 @@
 import SwiftUI
-import CloudKit
 
 struct OnboardingView: View {
     @EnvironmentObject var sharingService: CloudKitSharingService
@@ -48,11 +47,10 @@ struct OnboardingView: View {
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(sharingService.iCloudAvailable ? Color.blue : Color.gray)
+                            .background(Color.blue)
                             .foregroundColor(.white)
                             .cornerRadius(12)
                     }
-                    .disabled(!sharingService.iCloudAvailable)
 
                     Text("Or wait to accept an invitation from your spouse")
                         .font(.caption)

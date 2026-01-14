@@ -244,7 +244,7 @@ struct ShareSpaceView: View {
                     .font(.system(size: 60))
                     .foregroundStyle(.blue)
 
-                Text("Share "\(space.name ?? "Our Home")"")
+                Text("Share \"\(space.name ?? "Our Home")\"")
                     .font(.title2)
                     .fontWeight(.semibold)
 
@@ -372,14 +372,16 @@ struct EditSpaceSheet: View {
     }
 }
 
-#Preview {
-    let context = PersistenceController.preview.container.viewContext
-    let space = Space(context: context)
-    space.id = UUID()
-    space.name = "Our Home"
-    space.ownerName = "Laura"
+struct SettingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        let context = PersistenceController.preview.container.viewContext
+        let space = Space(context: context)
+        space.id = UUID()
+        space.name = "Our Home"
+        space.ownerName = "Laura"
 
-    return SettingsView(space: space)
-        .environment(\.managedObjectContext, context)
-        .environmentObject(CloudKitSharingService.shared)
+        return SettingsView(space: space)
+            .environment(\.managedObjectContext, context)
+            .environmentObject(CloudKitSharingService.shared)
+    }
 }

@@ -7,7 +7,7 @@ class PersistenceController: ObservableObject {
     let container: NSPersistentCloudKitContainer
 
     // CloudKit container identifier - must match your CloudKit container
-    static let cloudKitContainerIdentifier = "iCloud.org.laurastrandt.OursLists"
+    static let cloudKitContainerIdentifier = "iCloud.com.short.OursLists"
 
     // For previews
     static var preview: PersistenceController = {

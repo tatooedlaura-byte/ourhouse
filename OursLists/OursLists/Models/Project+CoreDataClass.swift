@@ -4,8 +4,8 @@ import SwiftUI
 
 @objc(Project)
 public class Project: NSManagedObject {
-    var tasksArray: [Task] {
-        let set = tasks as? Set<Task> ?? []
+    var tasksArray: [ProjectTask] {
+        let set = tasks as? Set<ProjectTask> ?? []
         return set.sorted {
             // Incomplete first, then by priority, then by creation date
             if ($0.completedAt == nil) != ($1.completedAt == nil) {
@@ -18,11 +18,11 @@ public class Project: NSManagedObject {
         }
     }
 
-    var incompleteTasks: [Task] {
+    var incompleteTasks: [ProjectTask] {
         tasksArray.filter { $0.completedAt == nil }
     }
 
-    var completedTasks: [Task] {
+    var completedTasks: [ProjectTask] {
         tasksArray.filter { $0.completedAt != nil }
     }
 
@@ -54,10 +54,10 @@ extension Project {
 // MARK: - Generated accessors for tasks
 extension Project {
     @objc(addTasksObject:)
-    @NSManaged public func addToTasks(_ value: Task)
+    @NSManaged public func addToTasks(_ value: ProjectTask)
 
     @objc(removeTasksObject:)
-    @NSManaged public func removeFromTasks(_ value: Task)
+    @NSManaged public func removeFromTasks(_ value: ProjectTask)
 
     @objc(addTasks:)
     @NSManaged public func addToTasks(_ values: NSSet)

@@ -116,18 +116,18 @@ struct ProjectDetailView: View {
     private func quickAddTask() {
         guard !newTaskTitle.trimmingCharacters(in: .whitespaces).isEmpty else { return }
 
-        let task = Task(context: viewContext)
+        let task = ProjectTask(context: viewContext)
         task.id = UUID()
         task.title = newTaskTitle.trimmingCharacters(in: .whitespaces)
         task.createdAt = Date()
-        task.priority = Task.Priority.medium.rawValue
+        task.priority = ProjectTask.Priority.medium.rawValue
         task.project = project
 
         try? viewContext.save()
         newTaskTitle = ""
     }
 
-    private func deleteTasks(_ offsets: IndexSet, from tasks: [Task]) {
+    private func deleteTasks(_ offsets: IndexSet, from tasks: [ProjectTask]) {
         withAnimation {
             offsets.map { tasks[$0] }.forEach(viewContext.delete)
             try? viewContext.save()
@@ -137,7 +137,7 @@ struct ProjectDetailView: View {
 
 // MARK: - Task Row
 struct TaskRow: View {
-    @ObservedObject var task: Task
+    @ObservedObject var task: ProjectTask
     @Environment(\.managedObjectContext) private var viewContext
 
     var accentColor: Color
@@ -238,8 +238,8 @@ struct AddTaskSheet: View {
 
     @State private var title = ""
     @State private var note = ""
-    @State private var priority: Task.Priority = .medium
-    @State private var assignment: Task.Assignment = .unassigned
+    @State private var priority: ProjectTask.Priority = .medium
+    @State private var assignment: ProjectTask.Assignment = .unassigned
     @State private var hasDueDate = false
     @State private var dueDate = Date()
 
@@ -252,13 +252,13 @@ struct AddTaskSheet: View {
 
                 Section {
                     Picker("Priority", selection: $priority) {
-                        ForEach(Task.Priority.allCases, id: \.self) { p in
+                        ForEach(ProjectTask.Priority.allCases, id: \.self) { p in
                             Text(p.label).tag(p)
                         }
                     }
 
                     Picker("Assigned To", selection: $assignment) {
-                        ForEach(Task.Assignment.allCases, id: \.self) { a in
+                        ForEach(ProjectTask.Assignment.allCases, id: \.self) { a in
                             Text(a.rawValue).tag(a)
                         }
                     }
@@ -291,7 +291,7 @@ struct AddTaskSheet: View {
     }
 
     private func addTask() {
-        let task = Task(context: viewContext)
+        let task = ProjectTask(context: viewContext)
         task.id = UUID()
         task.title = title
         task.note = note.isEmpty ? nil : note
@@ -308,18 +308,18 @@ struct AddTaskSheet: View {
 
 // MARK: - Edit Task Sheet
 struct EditTaskSheet: View {
-    @ObservedObject var task: Task
+    @ObservedObject var task: ProjectTask
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
 
     @State private var title: String
     @State private var note: String
-    @State private var priority: Task.Priority
-    @State private var assignment: Task.Assignment
+    @State private var priority: ProjectTask.Priority
+    @State private var assignment: ProjectTask.Assignment
     @State private var hasDueDate: Bool
     @State private var dueDate: Date
 
-    init(task: Task) {
+    init(task: ProjectTask) {
         self.task = task
         _title = State(initialValue: task.title ?? "")
         _note = State(initialValue: task.note ?? "")
@@ -338,13 +338,13 @@ struct EditTaskSheet: View {
 
                 Section {
                     Picker("Priority", selection: $priority) {
-                        ForEach(Task.Priority.allCases, id: \.self) { p in
+                        ForEach(ProjectTask.Priority.allCases, id: \.self) { p in
                             Text(p.label).tag(p)
                         }
                     }
 
                     Picker("Assigned To", selection: $assignment) {
-                        ForEach(Task.Assignment.allCases, id: \.self) { a in
+                        ForEach(ProjectTask.Assignment.allCases, id: \.self) { a in
                             Text(a.rawValue).tag(a)
                         }
                     }
@@ -464,15 +464,17 @@ struct EditProjectSheet: View {
     }
 }
 
-#Preview {
-    let context = PersistenceController.preview.container.viewContext
-    let project = Project(context: context)
-    project.id = UUID()
-    project.name = "Bathroom Renovation"
-    project.color = "#007AFF"
+struct ProjectDetailView_Previews: PreviewProvider {
+    static var previews: some View {
+        let context = PersistenceController.preview.container.viewContext
+        let project = Project(context: context)
+        project.id = UUID()
+        project.name = "Bathroom Renovation"
+        project.color = "#007AFF"
 
-    return NavigationStack {
-        ProjectDetailView(project: project)
+        return NavigationStack {
+            ProjectDetailView(project: project)
+        }
+        .environment(\.managedObjectContext, context)
     }
-    .environment(\.managedObjectContext, context)
 }
