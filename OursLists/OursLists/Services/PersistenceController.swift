@@ -71,8 +71,9 @@ class PersistenceController: ObservableObject {
         description.setOption(true as NSNumber, forKey: NSInferMappingModelAutomaticallyOption)
 
         container.loadPersistentStores { description, error in
+            print("PersistenceController: loadPersistentStores completed")
             if let error = error {
-                print("Core Data failed to load: \(error.localizedDescription)")
+                print("PersistenceController: Core Data failed to load: \(error.localizedDescription)")
 
                 // If migration fails, delete the store and try again
                 if let storeURL = description.url {

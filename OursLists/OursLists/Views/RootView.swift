@@ -16,11 +16,16 @@ struct RootView: View {
         Group {
             if let space = spaces.first {
                 // We have a space, show the main app
+                let _ = print("RootView: Found space '\(space.name ?? "unnamed")', showing MainTabView")
                 MainTabView(space: space)
             } else {
                 // No space yet, show onboarding
+                let _ = print("RootView: No space found, showing OnboardingView")
                 OnboardingView()
             }
+        }
+        .onAppear {
+            print("RootView: Appeared, spaces count = \(spaces.count)")
         }
         .onReceive(NotificationCenter.default.publisher(for: .didAcceptCloudKitShare)) { _ in
             // Refresh when a share is accepted

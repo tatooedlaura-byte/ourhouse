@@ -88,32 +88,94 @@ class CloudKitSharingService: NSObject, ObservableObject {
 
     // MARK: - Present Sharing UI
     func presentSharingUI(for space: Space, from viewController: UIViewController) async {
-        guard let context = space.managedObjectContext else { return }
+        guard let context = space.managedObjectContext else {
+            await MainActor.run {
+                self.errorMessage = "Could not access data context"
+            }
+            return
+        }
+
+        // Clear any previous error
+        await MainActor.run {
+            self.errorMessage = nil
+        }
+
+        // Ensure data is saved and give CloudKit time to sync
+        if context.hasChanges {
+            try? context.save()
+        }
+
+        // Small delay to allow sync
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
 
         do {
             // Check if share already exists
             let existingShares = try PersistenceController.shared.container.fetchShares(matching: [space.objectID])
 
-            let share: CKShare
             if let existingShare = existingShares[space.objectID] {
-                share = existingShare
-            } else {
-                share = try await createShare(for: space, in: context)
-            }
+                // Share exists - show management UI with add people option
+                await MainActor.run {
+                    let sharingController = UICloudSharingController(share: existingShare, container: self.container)
+                    sharingController.delegate = self
+                    sharingController.availablePermissions = [.allowReadWrite, .allowPrivate]
 
-            await MainActor.run {
-                let sharingController = UICloudSharingController(share: share, container: self.container)
-                sharingController.delegate = self
-                sharingController.availablePermissions = [.allowReadWrite]
+                    if let popover = sharingController.popoverPresentationController {
+                        popover.sourceView = viewController.view
+                        popover.sourceRect = CGRect(x: viewController.view.bounds.midX,
+                                                    y: viewController.view.bounds.midY,
+                                                    width: 0, height: 0)
+                    }
 
-                if let popover = sharingController.popoverPresentationController {
-                    popover.sourceView = viewController.view
-                    popover.sourceRect = CGRect(x: viewController.view.bounds.midX,
-                                                y: viewController.view.bounds.midY,
-                                                width: 0, height: 0)
+                    viewController.present(sharingController, animated: true)
                 }
+            } else {
+                // No share exists - use preparation handler to create share and invite in one step
+                await MainActor.run {
+                    let sharingController = UICloudSharingController { controller, preparationCompletionHandler in
+                        Task {
+                            do {
+                                print("CloudKit: Starting share creation...")
+                                let (_, share, _) = try await PersistenceController.shared.container.share(
+                                    [space],
+                                    to: nil
+                                )
+                                print("CloudKit: Share created successfully")
 
-                viewController.present(sharingController, animated: true)
+                                share[CKShare.SystemFieldKey.title] = space.name ?? "Our Household"
+                                share.publicPermission = .none
+
+                                // Save reference to share
+                                if let encoded = try? NSKeyedArchiver.archivedData(withRootObject: share.recordID, requiringSecureCoding: true) {
+                                    space.shareRecordData = encoded
+                                    space.isShared = true
+                                    try? context.save()
+                                }
+
+                                preparationCompletionHandler(share, self.container, nil)
+                            } catch {
+                                print("CloudKit: Share creation failed: \(error)")
+                                print("CloudKit: Error details: \(String(describing: error))")
+                                if let ckError = error as? CKError {
+                                    print("CloudKit: CKError code: \(ckError.code.rawValue)")
+                                    print("CloudKit: CKError userInfo: \(ckError.userInfo)")
+                                }
+                                preparationCompletionHandler(nil, nil, error)
+                            }
+                        }
+                    }
+
+                    sharingController.delegate = self
+                    sharingController.availablePermissions = [.allowReadWrite]
+
+                    if let popover = sharingController.popoverPresentationController {
+                        popover.sourceView = viewController.view
+                        popover.sourceRect = CGRect(x: viewController.view.bounds.midX,
+                                                    y: viewController.view.bounds.midY,
+                                                    width: 0, height: 0)
+                    }
+
+                    viewController.present(sharingController, animated: true)
+                }
             }
         } catch {
             await MainActor.run {

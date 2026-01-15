@@ -263,9 +263,17 @@ struct ParticipantRow: View {
 struct ShareSpaceView: View {
     @ObservedObject var space: Space
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.managedObjectContext) private var viewContext
     @EnvironmentObject var sharingService: CloudKitSharingService
 
     @State private var isSharing = false
+    @State private var errorMessage: String?
+    @State private var showingError = false
+    @State private var showingResetConfirm = false
+
+    var hasExistingShare: Bool {
+        space.isShared
+    }
 
     var body: some View {
         NavigationStack {
@@ -280,10 +288,17 @@ struct ShareSpaceView: View {
                     .font(.title2)
                     .fontWeight(.semibold)
 
-                Text("Invite your spouse to share this household. They'll be able to view and edit all lists, chores, and projects.")
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 32)
+                if hasExistingShare {
+                    Text("A share has been created. Tap the button below, then tap the **+** button or **Add People** to invite your spouse.")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 32)
+                } else {
+                    Text("Invite your spouse to share this household. They'll be able to view and edit all lists, chores, and projects.")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 32)
+                }
 
                 Spacer()
 
@@ -291,11 +306,16 @@ struct ShareSpaceView: View {
                     presentSharing()
                 } label: {
                     if isSharing {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding()
+                        HStack {
+                            ProgressView()
+                                .tint(.white)
+                            Text("Preparing...")
+                                .font(.headline)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
                     } else {
-                        Text("Share via iCloud")
+                        Text(hasExistingShare ? "Manage Sharing" : "Share via iCloud")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -307,11 +327,29 @@ struct ShareSpaceView: View {
                 .padding(.horizontal, 32)
                 .disabled(isSharing)
 
-                Text("Your spouse will receive a notification to accept the invitation")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                if hasExistingShare {
+                    Text("Look for the + button to add people")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.orange)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+
+                    Button {
+                        showingResetConfirm = true
+                    } label: {
+                        Text("Reset & Start Over")
+                            .font(.subheadline)
+                            .foregroundStyle(.red)
+                    }
+                    .padding(.top, 8)
+                } else {
+                    Text("Your spouse will receive a notification to accept the invitation")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
 
                 Spacer()
             }
@@ -322,6 +360,29 @@ struct ShareSpaceView: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .disabled(isSharing)
+                }
+            }
+            .alert("Sharing Error", isPresented: $showingError) {
+                Button("OK") {
+                    errorMessage = nil
+                }
+            } message: {
+                Text(errorMessage ?? "An unknown error occurred")
+            }
+            .alert("Reset Sharing?", isPresented: $showingResetConfirm) {
+                Button("Cancel", role: .cancel) {}
+                Button("Reset", role: .destructive) {
+                    resetSharing()
+                }
+            } message: {
+                Text("This will remove the current share so you can start fresh.")
+            }
+            .onChange(of: sharingService.errorMessage) { _, newError in
+                if let error = newError {
+                    errorMessage = error
+                    showingError = true
+                    isSharing = false
                 }
             }
         }
@@ -329,10 +390,13 @@ struct ShareSpaceView: View {
 
     private func presentSharing() {
         isSharing = true
+        errorMessage = nil
 
         // Get the root view controller
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootVC = windowScene.windows.first?.rootViewController else {
+            errorMessage = "Could not access the app window"
+            showingError = true
             isSharing = false
             return
         }
@@ -347,8 +411,17 @@ struct ShareSpaceView: View {
             await sharingService.presentSharingUI(for: space, from: topVC)
             await MainActor.run {
                 isSharing = false
-                dismiss()
             }
+        }
+    }
+
+    private func resetSharing() {
+        space.isShared = false
+        space.shareRecordData = nil
+        try? viewContext.save()
+
+        Task {
+            try? await sharingService.stopSharing(for: space)
         }
     }
 }

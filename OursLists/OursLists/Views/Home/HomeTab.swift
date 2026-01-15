@@ -9,6 +9,9 @@ struct HomeTab: View {
     @State private var showingAddChore = false
     @State private var showingAddProject = false
     @State private var showingSettings = false
+    @State private var showingOverdue = false
+    @State private var showingDueToday = false
+    @State private var showingToBuy = false
 
     // Quick stats
     var overdueChores: Int {
@@ -42,28 +45,43 @@ struct HomeTab: View {
                     if overdueChores > 0 || dueToday > 0 || groceryItemsNeeded > 0 {
                         HStack(spacing: 16) {
                             if overdueChores > 0 {
-                                StatBadge(
-                                    count: overdueChores,
-                                    label: "Overdue",
-                                    color: .red,
-                                    icon: "exclamationmark.circle.fill"
-                                )
+                                Button {
+                                    showingOverdue = true
+                                } label: {
+                                    StatBadge(
+                                        count: overdueChores,
+                                        label: "Overdue",
+                                        color: .red,
+                                        icon: "exclamationmark.circle.fill"
+                                    )
+                                }
+                                .buttonStyle(.plain)
                             }
                             if dueToday > 0 {
-                                StatBadge(
-                                    count: dueToday,
-                                    label: "Due Today",
-                                    color: .orange,
-                                    icon: "clock.fill"
-                                )
+                                Button {
+                                    showingDueToday = true
+                                } label: {
+                                    StatBadge(
+                                        count: dueToday,
+                                        label: "Due Today",
+                                        color: .orange,
+                                        icon: "clock.fill"
+                                    )
+                                }
+                                .buttonStyle(.plain)
                             }
                             if groceryItemsNeeded > 0 {
-                                StatBadge(
-                                    count: groceryItemsNeeded,
-                                    label: "To Buy",
-                                    color: .blue,
-                                    icon: "cart.fill"
-                                )
+                                Button {
+                                    showingToBuy = true
+                                } label: {
+                                    StatBadge(
+                                        count: groceryItemsNeeded,
+                                        label: "To Buy",
+                                        color: .blue,
+                                        icon: "cart.fill"
+                                    )
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                         .padding(.horizontal)
@@ -152,6 +170,15 @@ struct HomeTab: View {
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView(space: space)
+            }
+            .sheet(isPresented: $showingOverdue) {
+                OverdueChoresSheet(space: space)
+            }
+            .sheet(isPresented: $showingDueToday) {
+                DueTodayChoresSheet(space: space)
+            }
+            .sheet(isPresented: $showingToBuy) {
+                ToBuySheet(space: space)
             }
         }
     }
@@ -339,5 +366,180 @@ struct QuickAddGrocerySheet: View {
 
         try? viewContext.save()
         dismiss()
+    }
+}
+
+// MARK: - Overdue Chores Sheet
+struct OverdueChoresSheet: View {
+    @ObservedObject var space: Space
+    @Environment(\.managedObjectContext) private var viewContext
+    @Environment(\.dismiss) private var dismiss
+
+    var overdueChores: [Chore] {
+        space.choresArray
+            .filter { $0.isOverdue && !$0.isPaused }
+            .sorted { ($0.nextDueAt ?? Date()) < ($1.nextDueAt ?? Date()) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(overdueChores) { chore in
+                    HStack(spacing: 12) {
+                        Button {
+                            withAnimation {
+                                chore.markDone()
+                                try? viewContext.save()
+                            }
+                        } label: {
+                            Image(systemName: "circle")
+                                .font(.title2)
+                                .foregroundStyle(.green)
+                        }
+                        .buttonStyle(.plain)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(chore.title ?? "")
+                                .font(.subheadline)
+                            Text(chore.dueDescription)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+
+                        Spacer()
+
+                        Text(chore.frequencyEnum.rawValue)
+                            .font(.caption2)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.purple.opacity(0.1))
+                            .foregroundStyle(.purple)
+                            .cornerRadius(6)
+                    }
+                }
+            }
+            .navigationTitle("Overdue")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Due Today Chores Sheet
+struct DueTodayChoresSheet: View {
+    @ObservedObject var space: Space
+    @Environment(\.managedObjectContext) private var viewContext
+    @Environment(\.dismiss) private var dismiss
+
+    var dueTodayChores: [Chore] {
+        space.choresArray
+            .filter { $0.isDueToday && !$0.isPaused }
+            .sorted { ($0.nextDueAt ?? Date()) < ($1.nextDueAt ?? Date()) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(dueTodayChores) { chore in
+                    HStack(spacing: 12) {
+                        Button {
+                            withAnimation {
+                                chore.markDone()
+                                try? viewContext.save()
+                            }
+                        } label: {
+                            Image(systemName: "circle")
+                                .font(.title2)
+                                .foregroundStyle(.green)
+                        }
+                        .buttonStyle(.plain)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(chore.title ?? "")
+                                .font(.subheadline)
+                            Text(chore.dueDescription)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Text(chore.frequencyEnum.rawValue)
+                            .font(.caption2)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.purple.opacity(0.1))
+                            .foregroundStyle(.purple)
+                            .cornerRadius(6)
+                    }
+                }
+            }
+            .navigationTitle("Due Today")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - To Buy Sheet
+struct ToBuySheet: View {
+    @ObservedObject var space: Space
+    @Environment(\.managedObjectContext) private var viewContext
+    @Environment(\.dismiss) private var dismiss
+
+    var groceryLists: [GroceryList] {
+        space.groceryListsArray.filter { $0.uncheckedCount > 0 }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(groceryLists) { list in
+                    Section(list.name ?? "Untitled") {
+                        ForEach(list.itemsArray.filter { !$0.isChecked }) { item in
+                            HStack(spacing: 12) {
+                                Button {
+                                    withAnimation {
+                                        item.isChecked = true
+                                        item.updatedAt = Date()
+                                        try? viewContext.save()
+                                    }
+                                } label: {
+                                    Image(systemName: "circle")
+                                        .font(.title2)
+                                        .foregroundStyle(.blue)
+                                }
+                                .buttonStyle(.plain)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.title ?? "")
+                                        .font(.subheadline)
+                                    if let quantity = item.quantity, !quantity.isEmpty {
+                                        Text(quantity)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("To Buy")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 }
