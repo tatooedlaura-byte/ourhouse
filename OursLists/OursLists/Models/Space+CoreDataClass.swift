@@ -21,6 +21,25 @@ public class Space: NSManagedObject {
         let set = projects as? Set<Project> ?? []
         return set.sorted { ($0.createdAt ?? Date()) < ($1.createdAt ?? Date()) }
     }
+
+    // Computed property to get purchase history sorted by count
+    var purchaseHistoryArray: [PurchaseHistory] {
+        let set = purchaseHistory as? Set<PurchaseHistory> ?? []
+        return set.sorted { $0.purchaseCount > $1.purchaseCount }
+    }
+
+    // Get frequently bought items (top items by count)
+    var frequentlyBoughtItems: [PurchaseHistory] {
+        Array(purchaseHistoryArray.prefix(20))
+    }
+
+    // Get recently bought items (sorted by last purchase date)
+    var recentlyBoughtItems: [PurchaseHistory] {
+        let set = purchaseHistory as? Set<PurchaseHistory> ?? []
+        return set.sorted { ($0.lastPurchasedAt ?? Date.distantPast) > ($1.lastPurchasedAt ?? Date.distantPast) }
+            .prefix(20)
+            .map { $0 }
+    }
 }
 
 extension Space {
@@ -37,6 +56,7 @@ extension Space {
     @NSManaged public var groceryLists: NSSet?
     @NSManaged public var chores: NSSet?
     @NSManaged public var projects: NSSet?
+    @NSManaged public var purchaseHistory: NSSet?
 }
 
 // MARK: - Generated accessors for groceryLists
@@ -82,6 +102,21 @@ extension Space {
 
     @objc(removeProjects:)
     @NSManaged public func removeFromProjects(_ values: NSSet)
+}
+
+// MARK: - Generated accessors for purchaseHistory
+extension Space {
+    @objc(addPurchaseHistoryObject:)
+    @NSManaged public func addToPurchaseHistory(_ value: PurchaseHistory)
+
+    @objc(removePurchaseHistoryObject:)
+    @NSManaged public func removeFromPurchaseHistory(_ value: PurchaseHistory)
+
+    @objc(addPurchaseHistory:)
+    @NSManaged public func addToPurchaseHistory(_ values: NSSet)
+
+    @objc(removePurchaseHistory:)
+    @NSManaged public func removeFromPurchaseHistory(_ values: NSSet)
 }
 
 extension Space: Identifiable {}

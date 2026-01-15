@@ -5,6 +5,7 @@ struct ChoresTab: View {
     @ObservedObject var space: Space
     @Environment(\.managedObjectContext) private var viewContext
     @EnvironmentObject var sharingService: CloudKitSharingService
+    @EnvironmentObject var persistenceController: PersistenceController
 
     @State private var showingAddChore = false
     @State private var showingSettings = false
@@ -100,6 +101,9 @@ struct ChoresTab: View {
                     ChoreRow(chore: chore)
                 }
             }
+            .refreshable {
+                await persistenceController.performManualSync()
+            }
         }
     }
 
@@ -134,6 +138,9 @@ struct ChoresTab: View {
                         }
                     }
                 }
+            }
+            .refreshable {
+                await persistenceController.performManualSync()
             }
         }
     }
@@ -183,6 +190,14 @@ struct ChoreRow: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                }
+
+                // Last completed info
+                if let completedInfo = chore.lastCompletedByDescription {
+                    Text("Last done \(completedInfo)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .italic()
                 }
             }
 
@@ -251,13 +266,60 @@ struct AddChoreSheet: View {
     @State private var assignment: Chore.Assignment = .unassigned
     @State private var notes = ""
 
+    // Check for existing chores with similar names
+    var existingChores: [Chore] {
+        space.choresArray
+    }
+
+    var matchingChore: Chore? {
+        guard !title.isEmpty else { return nil }
+        let normalizedTitle = title.lowercased().trimmingCharacters(in: .whitespaces)
+        return existingChores.first { ($0.title ?? "").lowercased() == normalizedTitle }
+    }
+
+    var similarChores: [Chore] {
+        guard title.count >= 2 else { return [] }
+        let normalizedTitle = title.lowercased().trimmingCharacters(in: .whitespaces)
+        return existingChores.filter {
+            let choreTitle = ($0.title ?? "").lowercased()
+            return choreTitle.contains(normalizedTitle) || normalizedTitle.contains(choreTitle)
+        }.prefix(3).map { $0 }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section {
                     TextField("Chore Name", text: $title)
+
+                    // Duplicate warning
+                    if matchingChore != nil {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                            Text("A chore with this name already exists")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
                 } footer: {
                     Text("e.g., Vacuum living room, Take out trash")
+                }
+
+                // Show similar existing chores
+                if !similarChores.isEmpty && matchingChore == nil {
+                    Section("Similar Existing Chores") {
+                        ForEach(similarChores) { chore in
+                            HStack {
+                                Text(chore.title ?? "")
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text(chore.frequencyEnum.rawValue)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
 
                 Section("Frequency") {
@@ -312,6 +374,10 @@ struct AddChoreSheet: View {
         chore.space = space
 
         try? viewContext.save()
+
+        // Schedule notification for new chore
+        NotificationService.shared.scheduleChoreNotification(for: chore)
+
         dismiss()
     }
 }
@@ -411,6 +477,14 @@ struct EditChoreSheet: View {
         chore.isPaused = isPaused
 
         try? viewContext.save()
+
+        // Update notification
+        if isPaused {
+            NotificationService.shared.cancelChoreNotification(for: chore)
+        } else {
+            NotificationService.shared.scheduleChoreNotification(for: chore)
+        }
+
         dismiss()
     }
 }

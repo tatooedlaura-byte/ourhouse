@@ -4,6 +4,7 @@ import CoreData
 struct ProjectDetailView: View {
     @ObservedObject var project: Project
     @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var persistenceController: PersistenceController
 
     @State private var newTaskTitle = ""
     @State private var showingAddTask = false
@@ -75,6 +76,9 @@ struct ProjectDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        }
+        .refreshable {
+            await persistenceController.performManualSync()
         }
         .navigationTitle(project.name ?? "Project")
         .toolbar {
@@ -302,6 +306,12 @@ struct AddTaskSheet: View {
         task.project = project
 
         try? viewContext.save()
+
+        // Schedule notification if has due date
+        if hasDueDate {
+            NotificationService.shared.scheduleTaskNotification(for: task)
+        }
+
         dismiss()
     }
 }
@@ -395,6 +405,14 @@ struct EditTaskSheet: View {
         task.dueDate = hasDueDate ? dueDate : nil
 
         try? viewContext.save()
+
+        // Update notification
+        if hasDueDate && !task.isCompleted {
+            NotificationService.shared.scheduleTaskNotification(for: task)
+        } else {
+            NotificationService.shared.cancelTaskNotification(for: task)
+        }
+
         dismiss()
     }
 }

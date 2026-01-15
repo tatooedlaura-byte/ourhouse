@@ -9,8 +9,11 @@
 /* Begin PBXBuildFile section */
 		0076F4DB3A24DE5F1B82EBDD /* ProjectsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B79841AC0C3B5D8BB6B0FD2 /* ProjectsTab.swift */; };
 		153EBE8228819FCE1E47EFC0 /* GroceriesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0FCB199796348A73D96706 /* GroceriesTab.swift */; };
+		1AE46855656567670DD38C52 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 602B6B4DBDCF31132134785F /* NotificationService.swift */; };
 		26A5B06CE7DD54FA012BBA67 /* GroceryItem+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 208F973097FFD01D7BDED62C /* GroceryItem+CoreDataClass.swift */; };
 		2B8A5E3B72687103B280562C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14A306597AF74E7CEB7C4DEE /* SettingsView.swift */; };
+		4638352300AC6F1D2164FA85 /* PurchaseHistoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7184CF83CAE4471096191F58 /* PurchaseHistoryService.swift */; };
+		4FA393780EC5858417BF77FE /* FrequentItemsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA274856A32CBFB5D2AF7695 /* FrequentItemsSheet.swift */; };
 		56358E15606A05AE8715DFD6 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D152607FF841B83D4C717E5 /* RootView.swift */; };
 		60004130F9744463C87859C6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 649457B96C34FDA48C58711F /* Assets.xcassets */; };
 		6319A45DB1572F696670BCD8 /* CloudKitSharingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F08537282549126BDFCF06C /* CloudKitSharingService.swift */; };
@@ -19,6 +22,8 @@
 		850CBDC4E4C839637456FFAC /* GroceryListDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8CAF906AA29B4CCA49CF716 /* GroceryListDetailView.swift */; };
 		8DDEE259EEEDD0BBC5FEBA4F /* Space+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3A9F3C3B5CE209351C9B3C9 /* Space+CoreDataClass.swift */; };
 		90F4DD7CF7B62F807C2047D3 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E27E754F8C764368B0D7C32B /* SceneDelegate.swift */; };
+		943004594F497A79362D4915 /* ChoreCompletion+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B015E9E0CC2DE94EF6B4547 /* ChoreCompletion+CoreDataClass.swift */; };
+		AC768DFC31B8CB7A0065E612 /* PurchaseHistory+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 895830118AEF622F1989BEA4 /* PurchaseHistory+CoreDataClass.swift */; };
 		B987012389A920A1D10DD573 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2C91F5E6224B3F83AF6124 /* OnboardingView.swift */; };
 		C155D04EB63C368110924540 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E4F6BB6A4417AF9186DB731 /* MainTabView.swift */; };
 		CC2281A0162513FD5F9AC5B4 /* GroceryList+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15DEFD602F17B691BB10DF8B /* GroceryList+CoreDataClass.swift */; };
@@ -40,18 +45,23 @@
 		255526F605E6EBF1C83CA3B6 /* OursLists.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = OursLists.xcdatamodel; sourceTree = "<group>"; };
 		2DEF9CD088BE3E961F92109E /* Project+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Project+CoreDataClass.swift"; sourceTree = "<group>"; };
 		38F116551A5C153B2540E4D0 /* Chore+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Chore+CoreDataClass.swift"; sourceTree = "<group>"; };
+		5B015E9E0CC2DE94EF6B4547 /* ChoreCompletion+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChoreCompletion+CoreDataClass.swift"; sourceTree = "<group>"; };
 		5E4F6BB6A4417AF9186DB731 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		602B6B4DBDCF31132134785F /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		625C60D93958946018E7E7D4 /* ProjectTask+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProjectTask+CoreDataClass.swift"; sourceTree = "<group>"; };
 		649457B96C34FDA48C58711F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		7184CF83CAE4471096191F58 /* PurchaseHistoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseHistoryService.swift; sourceTree = "<group>"; };
 		71FAC8FAB75572DB91317D47 /* OursListsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OursListsApp.swift; sourceTree = "<group>"; };
 		7A2C91F5E6224B3F83AF6124 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		7B79841AC0C3B5D8BB6B0FD2 /* ProjectsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsTab.swift; sourceTree = "<group>"; };
 		7D152607FF841B83D4C717E5 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		895830118AEF622F1989BEA4 /* PurchaseHistory+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PurchaseHistory+CoreDataClass.swift"; sourceTree = "<group>"; };
 		9D588FD5B98F1AB15CA1E486 /* OursLists.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = OursLists.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A02FD0B44E6E6A3195F6605C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A17338292DE606802823C40D /* OursLists.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OursLists.entitlements; sourceTree = "<group>"; };
 		A8CAF906AA29B4CCA49CF716 /* GroceryListDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryListDetailView.swift; sourceTree = "<group>"; };
 		AD0FCB199796348A73D96706 /* GroceriesTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceriesTab.swift; sourceTree = "<group>"; };
+		CA274856A32CBFB5D2AF7695 /* FrequentItemsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrequentItemsSheet.swift; sourceTree = "<group>"; };
 		DBB79D74AABADDD4131F4FCE /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
 		E27E754F8C764368B0D7C32B /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		E3A9F3C3B5CE209351C9B3C9 /* Space+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Space+CoreDataClass.swift"; sourceTree = "<group>"; };
@@ -86,6 +96,7 @@
 		6B8A17EC2B0D2263632A6DBC /* Groceries */ = {
 			isa = PBXGroup;
 			children = (
+				CA274856A32CBFB5D2AF7695 /* FrequentItemsSheet.swift */,
 				AD0FCB199796348A73D96706 /* GroceriesTab.swift */,
 				A8CAF906AA29B4CCA49CF716 /* GroceryListDetailView.swift */,
 			);
@@ -128,10 +139,12 @@
 			isa = PBXGroup;
 			children = (
 				38F116551A5C153B2540E4D0 /* Chore+CoreDataClass.swift */,
+				5B015E9E0CC2DE94EF6B4547 /* ChoreCompletion+CoreDataClass.swift */,
 				208F973097FFD01D7BDED62C /* GroceryItem+CoreDataClass.swift */,
 				15DEFD602F17B691BB10DF8B /* GroceryList+CoreDataClass.swift */,
 				2DEF9CD088BE3E961F92109E /* Project+CoreDataClass.swift */,
 				625C60D93958946018E7E7D4 /* ProjectTask+CoreDataClass.swift */,
+				895830118AEF622F1989BEA4 /* PurchaseHistory+CoreDataClass.swift */,
 				E3A9F3C3B5CE209351C9B3C9 /* Space+CoreDataClass.swift */,
 			);
 			path = Models;
@@ -155,7 +168,9 @@
 			isa = PBXGroup;
 			children = (
 				1F08537282549126BDFCF06C /* CloudKitSharingService.swift */,
+				602B6B4DBDCF31132134785F /* NotificationService.swift */,
 				DBB79D74AABADDD4131F4FCE /* PersistenceController.swift */,
+				7184CF83CAE4471096191F58 /* PurchaseHistoryService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -247,13 +262,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				76E3CE801F8762350CC0F96B /* Chore+CoreDataClass.swift in Sources */,
+				943004594F497A79362D4915 /* ChoreCompletion+CoreDataClass.swift in Sources */,
 				D0363C1AF0BD47126B99E3C7 /* ChoresTab.swift in Sources */,
 				6319A45DB1572F696670BCD8 /* CloudKitSharingService.swift in Sources */,
+				4FA393780EC5858417BF77FE /* FrequentItemsSheet.swift in Sources */,
 				153EBE8228819FCE1E47EFC0 /* GroceriesTab.swift in Sources */,
 				26A5B06CE7DD54FA012BBA67 /* GroceryItem+CoreDataClass.swift in Sources */,
 				CC2281A0162513FD5F9AC5B4 /* GroceryList+CoreDataClass.swift in Sources */,
 				850CBDC4E4C839637456FFAC /* GroceryListDetailView.swift in Sources */,
 				C155D04EB63C368110924540 /* MainTabView.swift in Sources */,
+				1AE46855656567670DD38C52 /* NotificationService.swift in Sources */,
 				B987012389A920A1D10DD573 /* OnboardingView.swift in Sources */,
 				E07A151FAA2F06B2A261CCA6 /* OursLists.xcdatamodeld in Sources */,
 				FBF8CF86E391E025C2882DF7 /* OursListsApp.swift in Sources */,
@@ -262,6 +280,8 @@
 				D7A494B93AB9E9C0B8A0FA58 /* ProjectDetailView.swift in Sources */,
 				84E799929DA7CCD0B571DE0C /* ProjectTask+CoreDataClass.swift in Sources */,
 				0076F4DB3A24DE5F1B82EBDD /* ProjectsTab.swift in Sources */,
+				AC768DFC31B8CB7A0065E612 /* PurchaseHistory+CoreDataClass.swift in Sources */,
+				4638352300AC6F1D2164FA85 /* PurchaseHistoryService.swift in Sources */,
 				56358E15606A05AE8715DFD6 /* RootView.swift in Sources */,
 				90F4DD7CF7B62F807C2047D3 /* SceneDelegate.swift in Sources */,
 				2B8A5E3B72687103B280562C /* SettingsView.swift in Sources */,

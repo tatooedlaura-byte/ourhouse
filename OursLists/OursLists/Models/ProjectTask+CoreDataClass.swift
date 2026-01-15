@@ -51,8 +51,14 @@ public class ProjectTask: NSManagedObject {
     func toggleCompletion() {
         if completedAt != nil {
             completedAt = nil
+            // Reschedule notification if has due date
+            if dueDate != nil {
+                NotificationService.shared.scheduleTaskNotification(for: self)
+            }
         } else {
             completedAt = Date()
+            // Cancel notification
+            NotificationService.shared.cancelTaskNotification(for: self)
         }
     }
 }

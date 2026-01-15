@@ -5,6 +5,7 @@ struct GroceriesTab: View {
     @ObservedObject var space: Space
     @Environment(\.managedObjectContext) private var viewContext
     @EnvironmentObject var sharingService: CloudKitSharingService
+    @EnvironmentObject var persistenceController: PersistenceController
 
     @State private var showingAddList = false
     @State private var showingSettings = false
@@ -72,6 +73,9 @@ struct GroceriesTab: View {
                 }
             }
             .onDelete(perform: deleteLists)
+        }
+        .refreshable {
+            await persistenceController.performManualSync()
         }
     }
 

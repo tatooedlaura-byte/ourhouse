@@ -91,6 +91,15 @@ class PersistenceController: ObservableObject {
         }
     }
 
+    // MARK: - Manual Sync (Pull to Refresh)
+    func performManualSync() async {
+        await MainActor.run {
+            container.viewContext.refreshAllObjects()
+        }
+        // Small delay to allow CloudKit sync to propagate
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
     // MARK: - Save Context
     func save() {
         let context = container.viewContext

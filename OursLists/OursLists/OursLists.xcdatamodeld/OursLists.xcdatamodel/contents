@@ -10,6 +10,7 @@
         <relationship name="groceryLists" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="GroceryList" inverseName="space" inverseEntity="GroceryList"/>
         <relationship name="chores" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Chore" inverseName="space" inverseEntity="Chore"/>
         <relationship name="projects" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Project" inverseName="space" inverseEntity="Project"/>
+        <relationship name="purchaseHistory" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="PurchaseHistory" inverseName="space" inverseEntity="PurchaseHistory"/>
     </entity>
     <entity name="GroceryList" representedClassName="GroceryList" syncable="YES">
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
@@ -41,6 +42,23 @@
         <attribute name="notes" optional="YES" attributeType="String"/>
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <relationship name="space" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Space" inverseName="chores" inverseEntity="Space"/>
+        <relationship name="completions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="ChoreCompletion" inverseName="chore" inverseEntity="ChoreCompletion"/>
+    </entity>
+    <entity name="ChoreCompletion" representedClassName="ChoreCompletion" syncable="YES">
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="completedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="completedBy" optional="YES" attributeType="String"/>
+        <relationship name="chore" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Chore" inverseName="completions" inverseEntity="Chore"/>
+    </entity>
+    <entity name="PurchaseHistory" representedClassName="PurchaseHistory" syncable="YES">
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="itemTitle" optional="YES" attributeType="String"/>
+        <attribute name="quantity" optional="YES" attributeType="String"/>
+        <attribute name="category" optional="YES" attributeType="String"/>
+        <attribute name="purchaseCount" attributeType="Integer 32" defaultValueString="1" usesScalarValueType="YES"/>
+        <attribute name="lastPurchasedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <relationship name="space" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Space" inverseName="purchaseHistory" inverseEntity="Space"/>
     </entity>
     <entity name="Project" representedClassName="Project" syncable="YES">
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>

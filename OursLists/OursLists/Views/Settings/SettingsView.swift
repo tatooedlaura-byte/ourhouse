@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var sharingService: CloudKitSharingService
+    @EnvironmentObject var notificationService: NotificationService
 
     @State private var showingShareSheet = false
     @State private var showingEditSpace = false
@@ -93,6 +94,37 @@ struct SettingsView: View {
                             ParticipantRow(participant: participant)
                         }
                     }
+                }
+
+                // Notifications
+                Section {
+                    HStack {
+                        Image(systemName: notificationService.isAuthorized ? "bell.fill" : "bell.slash.fill")
+                            .foregroundStyle(notificationService.isAuthorized ? .green : .gray)
+                            .frame(width: 32)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Reminders")
+                                .font(.headline)
+                            Text(notificationService.isAuthorized ? "Enabled" : "Disabled")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if !notificationService.isAuthorized {
+                        Button {
+                            Task {
+                                await notificationService.requestAuthorization()
+                            }
+                        } label: {
+                            Label("Enable Reminders", systemImage: "bell.badge")
+                        }
+                    }
+                } header: {
+                    Text("Notifications")
+                } footer: {
+                    Text("Get reminded when chores and tasks are due.")
                 }
 
                 // Danger Zone

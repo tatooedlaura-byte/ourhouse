@@ -4,9 +4,11 @@ import CoreData
 struct GroceryListDetailView: View {
     @ObservedObject var groceryList: GroceryList
     @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var persistenceController: PersistenceController
 
     @State private var newItemTitle = ""
     @State private var showingAddItem = false
+    @State private var showingFrequentItems = false
     @State private var sortByCategory = false
     @FocusState private var isAddFieldFocused: Bool
 
@@ -87,10 +89,19 @@ struct GroceryListDetailView: View {
                 }
             }
         }
+        .refreshable {
+            await persistenceController.performManualSync()
+        }
         .navigationTitle(groceryList.name ?? "Grocery List")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Button {
+                        showingFrequentItems = true
+                    } label: {
+                        Label("Add Frequent Items", systemImage: "clock.arrow.circlepath")
+                    }
+
                     Button {
                         sortByCategory.toggle()
                     } label: {
@@ -114,6 +125,9 @@ struct GroceryListDetailView: View {
         }
         .sheet(isPresented: $showingAddItem) {
             AddGroceryItemSheet(groceryList: groceryList)
+        }
+        .sheet(isPresented: $showingFrequentItems) {
+            FrequentItemsSheet(groceryList: groceryList)
         }
     }
 
@@ -226,8 +240,15 @@ struct GroceryItemRow: View {
 
     private func toggleItem() {
         withAnimation {
+            let wasChecked = item.isChecked
             item.isChecked.toggle()
             item.updatedAt = Date()
+
+            // Record purchase when item is checked (not unchecked)
+            if !wasChecked && item.isChecked {
+                PurchaseHistoryService.shared.recordPurchase(item: item, in: viewContext)
+            }
+
             try? viewContext.save()
         }
     }

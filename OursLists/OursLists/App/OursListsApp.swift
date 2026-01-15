@@ -1,10 +1,12 @@
 import SwiftUI
 import CloudKit
+import UserNotifications
 
 @main
 struct OursListsApp: App {
     @StateObject private var persistenceController = PersistenceController.shared
     @StateObject private var sharingService = CloudKitSharingService.shared
+    @StateObject private var notificationService = NotificationService.shared
     @StateObject private var appState = AppState()
 
     var body: some Scene {
@@ -13,10 +15,15 @@ struct OursListsApp: App {
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
                 .environmentObject(persistenceController)
                 .environmentObject(sharingService)
+                .environmentObject(notificationService)
                 .environmentObject(appState)
                 .onOpenURL { url in
                     // Handle CloudKit share acceptance URLs
                     handleIncomingURL(url)
+                }
+                .task {
+                    // Request notification permissions on first launch
+                    await notificationService.requestAuthorization()
                 }
         }
     }

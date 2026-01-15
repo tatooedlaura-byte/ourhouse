@@ -5,6 +5,7 @@ struct ProjectsTab: View {
     @ObservedObject var space: Space
     @Environment(\.managedObjectContext) private var viewContext
     @EnvironmentObject var sharingService: CloudKitSharingService
+    @EnvironmentObject var persistenceController: PersistenceController
 
     @State private var showingAddProject = false
     @State private var showingSettings = false
@@ -94,6 +95,9 @@ struct ProjectsTab: View {
                     }
                 }
             }
+        }
+        .refreshable {
+            await persistenceController.performManualSync()
         }
     }
 

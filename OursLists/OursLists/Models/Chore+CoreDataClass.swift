@@ -86,9 +86,42 @@ public class Chore: NSManagedObject {
         return dueDate <= twoDaysFromNow && dueDate >= Date()
     }
 
-    // Mark as done
-    func markDone() {
+    // Mark as done and record completion
+    func markDone(completedBy: String? = nil) {
         lastDoneAt = Date()
+
+        // Create completion record
+        if let context = self.managedObjectContext {
+            let completion = ChoreCompletion(context: context)
+            completion.id = UUID()
+            completion.completedAt = Date()
+            completion.completedBy = completedBy
+            completion.chore = self
+        }
+
+        // Reschedule notification for next occurrence
+        NotificationService.shared.scheduleChoreNotification(for: self)
+    }
+
+    // Computed property to get all completions sorted by date
+    var completionsArray: [ChoreCompletion] {
+        let set = completions as? Set<ChoreCompletion> ?? []
+        return set.sorted { ($0.completedAt ?? Date.distantPast) > ($1.completedAt ?? Date.distantPast) }
+    }
+
+    // Most recent completion
+    var lastCompletion: ChoreCompletion? {
+        completionsArray.first
+    }
+
+    // Last completed by description
+    var lastCompletedByDescription: String? {
+        guard let completion = lastCompletion else { return nil }
+        let timeAgo = completion.timeAgoDescription
+        if let by = completion.completedBy, !by.isEmpty {
+            return "\(timeAgo) by \(by)"
+        }
+        return timeAgo
     }
 
     // Human-readable due description
@@ -133,6 +166,22 @@ extension Chore {
     @NSManaged public var notes: String?
     @NSManaged public var createdAt: Date?
     @NSManaged public var space: Space?
+    @NSManaged public var completions: NSSet?
+}
+
+// MARK: - Generated accessors for completions
+extension Chore {
+    @objc(addCompletionsObject:)
+    @NSManaged public func addToCompletions(_ value: ChoreCompletion)
+
+    @objc(removeCompletionsObject:)
+    @NSManaged public func removeFromCompletions(_ value: ChoreCompletion)
+
+    @objc(addCompletions:)
+    @NSManaged public func addToCompletions(_ values: NSSet)
+
+    @objc(removeCompletions:)
+    @NSManaged public func removeFromCompletions(_ values: NSSet)
 }
 
 extension Chore: Identifiable {}
