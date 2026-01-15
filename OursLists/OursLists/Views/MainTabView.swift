@@ -6,23 +6,29 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
+            HomeTab(space: space)
+                .tabItem {
+                    Label("Home", systemImage: "house.fill")
+                }
+                .tag(0)
+
             GroceriesTab(space: space)
                 .tabItem {
                     Label("Groceries", systemImage: "cart.fill")
                 }
-                .tag(0)
+                .tag(1)
 
             ChoresTab(space: space)
                 .tabItem {
                     Label("Chores", systemImage: "checklist")
                 }
-                .tag(1)
+                .tag(2)
 
             ProjectsTab(space: space)
                 .tabItem {
                     Label("Projects", systemImage: "folder.fill")
                 }
-                .tag(2)
+                .tag(3)
         }
     }
 }

@@ -27,3 +27,9 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: "YES"
     entitlements:
       path: OursLists/OursLists.entitlements
+      properties:
+        aps-environment: development
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.com.short.OursLists
+        com.apple.developer.icloud-services:
+          - CloudKit
