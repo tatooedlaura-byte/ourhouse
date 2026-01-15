@@ -73,6 +73,33 @@ class PersistenceController: ObservableObject {
         container.loadPersistentStores { description, error in
             if let error = error {
                 print("Core Data failed to load: \(error.localizedDescription)")
+
+                // If migration fails, delete the store and try again
+                if let storeURL = description.url {
+                    print("Attempting to delete and recreate store...")
+                    do {
+                        try FileManager.default.removeItem(at: storeURL)
+                        // Also remove related files
+                        let walURL = storeURL.appendingPathExtension("wal")
+                        let shmURL = storeURL.appendingPathExtension("shm")
+                        try? FileManager.default.removeItem(at: walURL)
+                        try? FileManager.default.removeItem(at: shmURL)
+
+                        // Try loading again
+                        try self.container.persistentStoreCoordinator.addPersistentStore(
+                            ofType: NSSQLiteStoreType,
+                            configurationName: nil,
+                            at: storeURL,
+                            options: [
+                                NSMigratePersistentStoresAutomaticallyOption: true,
+                                NSInferMappingModelAutomaticallyOption: true
+                            ]
+                        )
+                        print("Store recreated successfully")
+                    } catch {
+                        print("Failed to recreate store: \(error)")
+                    }
+                }
             }
         }
 
