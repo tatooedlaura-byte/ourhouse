@@ -126,7 +126,7 @@ struct HomeTab: View {
 
                             QuickActionButton(
                                 title: "Add Reminder",
-                                icon: "bell.badge.plus",
+                                icon: "bell.badge",
                                 color: .orange
                             ) {
                                 showingAddReminder = true
