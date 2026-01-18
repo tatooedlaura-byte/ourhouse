@@ -8,6 +8,7 @@ struct HomeTab: View {
     @State private var showingAddGrocery = false
     @State private var showingAddChore = false
     @State private var showingAddProject = false
+    @State private var showingAddReminder = false
     @State private var showingSettings = false
     @State private var showingOverdue = false
     @State private var showingDueToday = false
@@ -124,11 +125,11 @@ struct HomeTab: View {
                             }
 
                             QuickActionButton(
-                                title: "Settings",
-                                icon: "gear",
-                                color: .gray
+                                title: "Add Reminder",
+                                icon: "bell.badge.plus",
+                                color: .orange
                             ) {
-                                showingSettings = true
+                                showingAddReminder = true
                             }
                         }
                         .padding(.horizontal)
@@ -159,6 +160,16 @@ struct HomeTab: View {
             }
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.body)
+                    }
+                }
+            }
             .sheet(isPresented: $showingAddGrocery) {
                 QuickAddGrocerySheet(space: space)
             }
@@ -167,6 +178,9 @@ struct HomeTab: View {
             }
             .sheet(isPresented: $showingAddProject) {
                 AddProjectSheet(space: space)
+            }
+            .sheet(isPresented: $showingAddReminder) {
+                AddReminderSheet(space: space)
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView(space: space)
