@@ -60,7 +60,7 @@ struct ChoresTab: View {
                     }
                 }
             }
-            .navigationTitle("Chores")
+            .navigationTitle("Tasks")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -94,7 +94,7 @@ struct ChoresTab: View {
             ContentUnavailableView {
                 Label("All Caught Up", systemImage: "checkmark.circle")
             } description: {
-                Text("No chores due today")
+                Text("No tasks due today")
             }
         } else {
             List {
@@ -112,11 +112,11 @@ struct ChoresTab: View {
     private var allView: some View {
         if chores.isEmpty && pausedChores.isEmpty {
             ContentUnavailableView {
-                Label("No Chores", systemImage: "checklist")
+                Label("No Tasks", systemImage: "checklist")
             } description: {
-                Text("Add recurring chores to keep track of household tasks")
+                Text("Add recurring tasks to keep track of household things")
             } actions: {
-                Button("Add Chore") {
+                Button("Add Task") {
                     showingAddChore = true
                 }
                 .buttonStyle(.borderedProminent)
@@ -291,25 +291,25 @@ struct AddChoreSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Chore Name", text: $title)
+                    TextField("Task Name", text: $title)
 
                     // Duplicate warning
                     if matchingChore != nil {
                         HStack {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundStyle(.orange)
-                            Text("A chore with this name already exists")
+                            Text("A task with this name already exists")
                                 .font(.caption)
                                 .foregroundStyle(.orange)
                         }
                     }
                 } footer: {
-                    Text("e.g., Vacuum living room, Take out trash")
+                    Text("e.g., Vacuum living room, Give dog meds")
                 }
 
-                // Show similar existing chores
+                // Show similar existing tasks
                 if !similarChores.isEmpty && matchingChore == nil {
-                    Section("Similar Existing Chores") {
+                    Section("Similar Existing Tasks") {
                         ForEach(similarChores) { chore in
                             HStack {
                                 Text(chore.title ?? "")
@@ -348,7 +348,7 @@ struct AddChoreSheet: View {
                         .lineLimit(3)
                 }
             }
-            .navigationTitle("New Chore")
+            .navigationTitle("New Task")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -410,7 +410,7 @@ struct EditChoreSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Chore Name", text: $title)
+                    TextField("Task Name", text: $title)
                 }
 
                 Section("Frequency") {
@@ -441,7 +441,7 @@ struct EditChoreSheet: View {
                 Section {
                     Toggle("Paused", isOn: $isPaused)
                 } footer: {
-                    Text("Paused chores won't appear in the Today view")
+                    Text("Paused tasks won't appear in the Today view")
                 }
 
                 if chore.lastDoneAt != nil {
@@ -455,7 +455,7 @@ struct EditChoreSheet: View {
                     }
                 }
             }
-            .navigationTitle("Edit Chore")
+            .navigationTitle("Edit Task")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

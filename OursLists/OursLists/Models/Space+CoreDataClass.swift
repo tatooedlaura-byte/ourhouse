@@ -22,10 +22,9 @@ public class Space: NSManagedObject {
         return set.sorted { ($0.createdAt ?? Date()) < ($1.createdAt ?? Date()) }
     }
 
-    // Computed property to get all reminders sorted by title
-    var remindersArray: [Reminder] {
-        let set = reminders as? Set<Reminder> ?? []
-        return set.sorted { ($0.title ?? "") < ($1.title ?? "") }
+    // Alias for UI that calls chores "tasks"
+    var tasksArray: [Chore] {
+        choresArray
     }
 
     // Computed property to get purchase history sorted by count
@@ -63,7 +62,6 @@ extension Space {
     @NSManaged public var chores: NSSet?
     @NSManaged public var projects: NSSet?
     @NSManaged public var purchaseHistory: NSSet?
-    @NSManaged public var reminders: NSSet?
 }
 
 // MARK: - Generated accessors for groceryLists
@@ -124,21 +122,6 @@ extension Space {
 
     @objc(removePurchaseHistory:)
     @NSManaged public func removeFromPurchaseHistory(_ values: NSSet)
-}
-
-// MARK: - Generated accessors for reminders
-extension Space {
-    @objc(addRemindersObject:)
-    @NSManaged public func addToReminders(_ value: Reminder)
-
-    @objc(removeRemindersObject:)
-    @NSManaged public func removeFromReminders(_ value: Reminder)
-
-    @objc(addReminders:)
-    @NSManaged public func addToReminders(_ values: NSSet)
-
-    @objc(removeReminders:)
-    @NSManaged public func removeFromReminders(_ values: NSSet)
 }
 
 extension Space: Identifiable {}

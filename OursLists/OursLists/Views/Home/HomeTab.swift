@@ -7,9 +7,8 @@ struct HomeTab: View {
     @EnvironmentObject var sharingService: CloudKitSharingService
 
     @State private var showingAddGrocery = false
-    @State private var showingAddChore = false
+    @State private var showingAddTask = false
     @State private var showingAddProject = false
-    @State private var showingAddReminder = false
     @State private var showingSettings = false
     @State private var showingOverdue = false
     @State private var showingDueToday = false
@@ -19,22 +18,19 @@ struct HomeTab: View {
     var groceryCount: Int {
         space.groceryListsArray.reduce(0) { $0 + $1.uncheckedCount }
     }
-    var choreCount: Int {
+    var taskCount: Int {
         space.choresArray.filter { !$0.isPaused }.count
     }
     var projectCount: Int {
         space.projectsArray.filter { !$0.isArchived }.count
     }
-    var reminderCount: Int {
-        space.remindersArray.filter { !$0.isPaused }.count
-    }
 
     // Quick stats
-    var overdueChores: Int {
+    var overdueTasks: Int {
         space.choresArray.filter { $0.isOverdue && !$0.isPaused }.count
     }
 
-    var dueToday: Int {
+    var dueTodayTasks: Int {
         space.choresArray.filter { $0.isDueToday && !$0.isPaused }.count
     }
 
@@ -58,14 +54,14 @@ struct HomeTab: View {
                     .padding(.top, 20)
 
                     // Quick stats banner
-                    if overdueChores > 0 || dueToday > 0 || groceryItemsNeeded > 0 {
+                    if overdueTasks > 0 || dueTodayTasks > 0 || groceryItemsNeeded > 0 {
                         HStack(spacing: 16) {
-                            if overdueChores > 0 {
+                            if overdueTasks > 0 {
                                 Button {
                                     showingOverdue = true
                                 } label: {
                                     StatBadge(
-                                        count: overdueChores,
+                                        count: overdueTasks,
                                         label: "Overdue",
                                         color: .red,
                                         icon: "exclamationmark.circle.fill"
@@ -73,12 +69,12 @@ struct HomeTab: View {
                                 }
                                 .buttonStyle(.plain)
                             }
-                            if dueToday > 0 {
+                            if dueTodayTasks > 0 {
                                 Button {
                                     showingDueToday = true
                                 } label: {
                                     StatBadge(
-                                        count: dueToday,
+                                        count: dueTodayTasks,
                                         label: "Due Today",
                                         color: .orange,
                                         icon: "clock.fill"
@@ -103,7 +99,7 @@ struct HomeTab: View {
                         .padding(.horizontal)
                     }
 
-                    // Go To section - large navigation buttons at top
+                    // Go To section - large navigation buttons
                     VStack(spacing: 16) {
                         Text("Go To")
                             .font(.headline)
@@ -112,6 +108,7 @@ struct HomeTab: View {
                             .padding(.horizontal)
 
                         LazyVGrid(columns: [
+                            GridItem(.flexible()),
                             GridItem(.flexible()),
                             GridItem(.flexible())
                         ], spacing: 16) {
@@ -125,10 +122,10 @@ struct HomeTab: View {
                             }
 
                             LargeNavigationButton(
-                                title: "Chores",
+                                title: "Tasks",
                                 icon: "checklist",
                                 color: .purple,
-                                count: choreCount
+                                count: taskCount
                             ) {
                                 selectedTab = 2
                             }
@@ -141,20 +138,11 @@ struct HomeTab: View {
                             ) {
                                 selectedTab = 3
                             }
-
-                            LargeNavigationButton(
-                                title: "Reminders",
-                                icon: "bell.fill",
-                                color: .orange,
-                                count: reminderCount
-                            ) {
-                                selectedTab = 4
-                            }
                         }
                         .padding(.horizontal)
                     }
 
-                    // Quick Actions - smaller buttons at bottom
+                    // Quick Actions - smaller buttons
                     VStack(spacing: 16) {
                         Text("Quick Actions")
                             .font(.headline)
@@ -164,10 +152,11 @@ struct HomeTab: View {
 
                         LazyVGrid(columns: [
                             GridItem(.flexible()),
+                            GridItem(.flexible()),
                             GridItem(.flexible())
                         ], spacing: 12) {
                             SmallActionButton(
-                                title: "Add Grocery",
+                                title: "Grocery",
                                 icon: "cart.badge.plus",
                                 color: .green
                             ) {
@@ -175,34 +164,26 @@ struct HomeTab: View {
                             }
 
                             SmallActionButton(
-                                title: "Add Chore",
+                                title: "Task",
                                 icon: "plus.circle",
                                 color: .purple
                             ) {
-                                showingAddChore = true
+                                showingAddTask = true
                             }
 
                             SmallActionButton(
-                                title: "New Project",
+                                title: "Project",
                                 icon: "folder.badge.plus",
                                 color: .blue
                             ) {
                                 showingAddProject = true
-                            }
-
-                            SmallActionButton(
-                                title: "Add Reminder",
-                                icon: "bell.badge",
-                                color: .orange
-                            ) {
-                                showingAddReminder = true
                             }
                         }
                         .padding(.horizontal)
                     }
 
                     // Due Today section
-                    if !todayChores.isEmpty {
+                    if !todayTasks.isEmpty {
                         VStack(spacing: 12) {
                             HStack {
                                 Text("Due Today")
@@ -212,8 +193,8 @@ struct HomeTab: View {
                             .padding(.horizontal)
 
                             VStack(spacing: 8) {
-                                ForEach(todayChores.prefix(3)) { chore in
-                                    ChoreQuickRow(chore: chore)
+                                ForEach(todayTasks.prefix(5)) { task in
+                                    TaskQuickRow(task: task)
                                 }
                             }
                             .padding(.horizontal)
@@ -239,23 +220,20 @@ struct HomeTab: View {
             .sheet(isPresented: $showingAddGrocery) {
                 QuickAddGrocerySheet(space: space)
             }
-            .sheet(isPresented: $showingAddChore) {
+            .sheet(isPresented: $showingAddTask) {
                 AddChoreSheet(space: space)
             }
             .sheet(isPresented: $showingAddProject) {
                 AddProjectSheet(space: space)
             }
-            .sheet(isPresented: $showingAddReminder) {
-                AddReminderSheet(space: space)
-            }
             .sheet(isPresented: $showingSettings) {
                 SettingsView(space: space)
             }
             .sheet(isPresented: $showingOverdue) {
-                OverdueChoresSheet(space: space)
+                OverdueTasksSheet(space: space)
             }
             .sheet(isPresented: $showingDueToday) {
-                DueTodayChoresSheet(space: space)
+                DueTodayTasksSheet(space: space)
             }
             .sheet(isPresented: $showingToBuy) {
                 ToBuySheet(space: space)
@@ -263,14 +241,14 @@ struct HomeTab: View {
         }
     }
 
-    var todayChores: [Chore] {
+    var todayTasks: [Chore] {
         space.choresArray
             .filter { ($0.isOverdue || $0.isDueToday) && !$0.isPaused }
-            .sorted { chore1, chore2 in
-                if chore1.isOverdue != chore2.isOverdue {
-                    return chore1.isOverdue
+            .sorted { task1, task2 in
+                if task1.isOverdue != task2.isOverdue {
+                    return task1.isOverdue
                 }
-                return (chore1.nextDueAt ?? Date()) < (chore2.nextDueAt ?? Date())
+                return (task1.nextDueAt ?? Date()) < (task2.nextDueAt ?? Date())
             }
     }
 }
@@ -301,7 +279,7 @@ struct StatBadge: View {
     }
 }
 
-// MARK: - Large Navigation Button (for Go To section)
+// MARK: - Large Navigation Button
 struct LargeNavigationButton: View {
     let title: String
     let icon: String
@@ -313,20 +291,20 @@ struct LargeNavigationButton: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 32))
+                    .font(.system(size: 28))
                     .foregroundStyle(color)
 
                 Text(title)
-                    .font(.subheadline)
+                    .font(.caption)
                     .fontWeight(.medium)
                     .foregroundStyle(.primary)
 
-                Text("\(count) items")
-                    .font(.caption)
+                Text("\(count)")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 110)
+            .frame(height: 90)
             .background(Color(.systemGray6))
             .cornerRadius(16)
         }
@@ -334,7 +312,7 @@ struct LargeNavigationButton: View {
     }
 }
 
-// MARK: - Small Action Button (for Quick Actions section)
+// MARK: - Small Action Button
 struct SmallActionButton: View {
     let title: String
     let icon: String
@@ -343,21 +321,18 @@ struct SmallActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            VStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 20))
+                    .font(.system(size: 22))
                     .foregroundStyle(color)
-                    .frame(width: 28)
 
                 Text(title)
-                    .font(.subheadline)
+                    .font(.caption2)
                     .fontWeight(.medium)
                     .foregroundStyle(.primary)
-
-                Spacer()
             }
-            .padding(12)
             .frame(maxWidth: .infinity)
+            .frame(height: 70)
             .background(Color(.systemGray6))
             .cornerRadius(12)
         }
@@ -365,16 +340,16 @@ struct SmallActionButton: View {
     }
 }
 
-// MARK: - Chore Quick Row
-struct ChoreQuickRow: View {
-    @ObservedObject var chore: Chore
+// MARK: - Task Quick Row
+struct TaskQuickRow: View {
+    @ObservedObject var task: Chore
     @Environment(\.managedObjectContext) private var viewContext
 
     var body: some View {
         HStack(spacing: 12) {
             Button {
                 withAnimation {
-                    chore.markDone()
+                    task.markDone()
                     try? viewContext.save()
                 }
             } label: {
@@ -385,16 +360,16 @@ struct ChoreQuickRow: View {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(chore.title ?? "")
+                Text(task.title ?? "")
                     .font(.subheadline)
-                Text(chore.dueDescription)
+                Text(task.dueDescription)
                     .font(.caption)
-                    .foregroundStyle(chore.isOverdue ? .red : .secondary)
+                    .foregroundStyle(task.isOverdue ? .red : .secondary)
             }
 
             Spacer()
 
-            Text(chore.frequencyEnum.rawValue)
+            Text(task.frequencyEnum.rawValue)
                 .font(.caption2)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -463,7 +438,6 @@ struct QuickAddGrocerySheet: View {
                 }
             }
             .onAppear {
-                // Auto-select first list
                 selectedList = groceryLists.first
             }
         }
@@ -485,13 +459,13 @@ struct QuickAddGrocerySheet: View {
     }
 }
 
-// MARK: - Overdue Chores Sheet
-struct OverdueChoresSheet: View {
+// MARK: - Overdue Tasks Sheet
+struct OverdueTasksSheet: View {
     @ObservedObject var space: Space
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
 
-    var overdueChores: [Chore] {
+    var overdueTasks: [Chore] {
         space.choresArray
             .filter { $0.isOverdue && !$0.isPaused }
             .sorted { ($0.nextDueAt ?? Date()) < ($1.nextDueAt ?? Date()) }
@@ -500,38 +474,8 @@ struct OverdueChoresSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(overdueChores) { chore in
-                    HStack(spacing: 12) {
-                        Button {
-                            withAnimation {
-                                chore.markDone()
-                                try? viewContext.save()
-                            }
-                        } label: {
-                            Image(systemName: "circle")
-                                .font(.title2)
-                                .foregroundStyle(.green)
-                        }
-                        .buttonStyle(.plain)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(chore.title ?? "")
-                                .font(.subheadline)
-                            Text(chore.dueDescription)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        }
-
-                        Spacer()
-
-                        Text(chore.frequencyEnum.rawValue)
-                            .font(.caption2)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.purple.opacity(0.1))
-                            .foregroundStyle(.purple)
-                            .cornerRadius(6)
-                    }
+                ForEach(overdueTasks) { task in
+                    TaskRowForSheet(task: task, isOverdue: true)
                 }
             }
             .navigationTitle("Overdue")
@@ -545,13 +489,13 @@ struct OverdueChoresSheet: View {
     }
 }
 
-// MARK: - Due Today Chores Sheet
-struct DueTodayChoresSheet: View {
+// MARK: - Due Today Tasks Sheet
+struct DueTodayTasksSheet: View {
     @ObservedObject var space: Space
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
 
-    var dueTodayChores: [Chore] {
+    var dueTodayTasks: [Chore] {
         space.choresArray
             .filter { $0.isDueToday && !$0.isPaused }
             .sorted { ($0.nextDueAt ?? Date()) < ($1.nextDueAt ?? Date()) }
@@ -560,38 +504,8 @@ struct DueTodayChoresSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(dueTodayChores) { chore in
-                    HStack(spacing: 12) {
-                        Button {
-                            withAnimation {
-                                chore.markDone()
-                                try? viewContext.save()
-                            }
-                        } label: {
-                            Image(systemName: "circle")
-                                .font(.title2)
-                                .foregroundStyle(.green)
-                        }
-                        .buttonStyle(.plain)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(chore.title ?? "")
-                                .font(.subheadline)
-                            Text(chore.dueDescription)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        Text(chore.frequencyEnum.rawValue)
-                            .font(.caption2)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.purple.opacity(0.1))
-                            .foregroundStyle(.purple)
-                            .cornerRadius(6)
-                    }
+                ForEach(dueTodayTasks) { task in
+                    TaskRowForSheet(task: task, isOverdue: false)
                 }
             }
             .navigationTitle("Due Today")
@@ -601,6 +515,47 @@ struct DueTodayChoresSheet: View {
                     Button("Done") { dismiss() }
                 }
             }
+        }
+    }
+}
+
+// MARK: - Task Row for Sheets
+struct TaskRowForSheet: View {
+    @ObservedObject var task: Chore
+    @Environment(\.managedObjectContext) private var viewContext
+    let isOverdue: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button {
+                withAnimation {
+                    task.markDone()
+                    try? viewContext.save()
+                }
+            } label: {
+                Image(systemName: "circle")
+                    .font(.title2)
+                    .foregroundStyle(.green)
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(task.title ?? "")
+                    .font(.subheadline)
+                Text(task.dueDescription)
+                    .font(.caption)
+                    .foregroundStyle(isOverdue ? .red : .secondary)
+            }
+
+            Spacer()
+
+            Text(task.frequencyEnum.rawValue)
+                .font(.caption2)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.purple.opacity(0.1))
+                .foregroundStyle(.purple)
+                .cornerRadius(6)
         }
     }
 }
