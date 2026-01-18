@@ -34,7 +34,8 @@ struct ProjectsTab: View {
                     Button {
                         showingSettings = true
                     } label: {
-                        Image(systemName: "house.circle")
+                        Image(systemName: "gearshape")
+                            .font(.body)
                     }
                 }
 

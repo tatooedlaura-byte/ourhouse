@@ -29,6 +29,12 @@ struct MainTabView: View {
                     Label("Projects", systemImage: "folder.fill")
                 }
                 .tag(3)
+
+            RemindersTab(space: space)
+                .tabItem {
+                    Label("Reminders", systemImage: "bell.fill")
+                }
+                .tag(4)
         }
     }
 }
