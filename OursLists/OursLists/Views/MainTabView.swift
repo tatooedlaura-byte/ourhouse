@@ -4,6 +4,23 @@ struct MainTabView: View {
     @ObservedObject var space: Space
     @State private var selectedTab = 0
 
+    // Badge counts for tabs
+    var groceryCount: Int {
+        space.groceryListsArray.reduce(0) { $0 + $1.uncheckedCount }
+    }
+
+    var choreCount: Int {
+        space.choresArray.filter { !$0.isPaused }.count
+    }
+
+    var projectCount: Int {
+        space.projectsArray.filter { !$0.isArchived }.count
+    }
+
+    var reminderCount: Int {
+        space.remindersArray.filter { !$0.isPaused }.count
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
             HomeTab(space: space)
@@ -16,24 +33,28 @@ struct MainTabView: View {
                 .tabItem {
                     Label("Groceries", systemImage: "cart.fill")
                 }
+                .badge(groceryCount > 0 ? groceryCount : 0)
                 .tag(1)
 
             ChoresTab(space: space)
                 .tabItem {
                     Label("Chores", systemImage: "checklist")
                 }
+                .badge(choreCount > 0 ? choreCount : 0)
                 .tag(2)
 
             ProjectsTab(space: space)
                 .tabItem {
                     Label("Projects", systemImage: "folder.fill")
                 }
+                .badge(projectCount > 0 ? projectCount : 0)
                 .tag(3)
 
             RemindersTab(space: space)
                 .tabItem {
                     Label("Reminders", systemImage: "bell.fill")
                 }
+                .badge(reminderCount > 0 ? reminderCount : 0)
                 .tag(4)
         }
     }
