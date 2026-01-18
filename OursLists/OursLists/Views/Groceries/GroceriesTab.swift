@@ -27,18 +27,18 @@ struct GroceriesTab: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
-                        showingSettings = true
+                        showingAddList = true
                     } label: {
-                        Image(systemName: "gearshape")
-                            .font(.body)
+                        Image(systemName: "plus")
                     }
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        showingAddList = true
+                        showingSettings = true
                     } label: {
-                        Image(systemName: "plus")
+                        Image(systemName: "gearshape")
+                            .font(.body)
                     }
                 }
             }

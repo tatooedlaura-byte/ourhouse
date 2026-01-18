@@ -32,18 +32,18 @@ struct ProjectsTab: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
-                        showingSettings = true
+                        showingAddProject = true
                     } label: {
-                        Image(systemName: "gearshape")
-                            .font(.body)
+                        Image(systemName: "plus")
                     }
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        showingAddProject = true
+                        showingSettings = true
                     } label: {
-                        Image(systemName: "plus")
+                        Image(systemName: "gearshape")
+                            .font(.body)
                     }
                 }
             }

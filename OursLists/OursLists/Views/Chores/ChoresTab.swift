@@ -64,18 +64,18 @@ struct ChoresTab: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
-                        showingSettings = true
+                        showingAddChore = true
                     } label: {
-                        Image(systemName: "gearshape")
-                            .font(.body)
+                        Image(systemName: "plus")
                     }
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        showingAddChore = true
+                        showingSettings = true
                     } label: {
-                        Image(systemName: "plus")
+                        Image(systemName: "gearshape")
+                            .font(.body)
                     }
                 }
             }
