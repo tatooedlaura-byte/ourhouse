@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeTab: View {
     @ObservedObject var space: Space
+    @Binding var selectedTab: Int
     @Environment(\.managedObjectContext) private var viewContext
     @EnvironmentObject var sharingService: CloudKitSharingService
 
@@ -13,6 +14,20 @@ struct HomeTab: View {
     @State private var showingOverdue = false
     @State private var showingDueToday = false
     @State private var showingToBuy = false
+
+    // Counts for navigation buttons
+    var groceryCount: Int {
+        space.groceryListsArray.reduce(0) { $0 + $1.uncheckedCount }
+    }
+    var choreCount: Int {
+        space.choresArray.filter { !$0.isPaused }.count
+    }
+    var projectCount: Int {
+        space.projectsArray.filter { !$0.isArchived }.count
+    }
+    var reminderCount: Int {
+        space.remindersArray.filter { !$0.isPaused }.count
+    }
 
     // Quick stats
     var overdueChores: Int {
@@ -130,6 +145,57 @@ struct HomeTab: View {
                                 color: .orange
                             ) {
                                 showingAddReminder = true
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+
+                    // Go To section - navigation buttons
+                    VStack(spacing: 16) {
+                        Text("Go To")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+
+                        LazyVGrid(columns: [
+                            GridItem(.flexible()),
+                            GridItem(.flexible())
+                        ], spacing: 16) {
+                            NavigationButton(
+                                title: "Groceries",
+                                icon: "cart.fill",
+                                color: .green,
+                                count: groceryCount
+                            ) {
+                                selectedTab = 1
+                            }
+
+                            NavigationButton(
+                                title: "Chores",
+                                icon: "checklist",
+                                color: .purple,
+                                count: choreCount
+                            ) {
+                                selectedTab = 2
+                            }
+
+                            NavigationButton(
+                                title: "Projects",
+                                icon: "folder.fill",
+                                color: .blue,
+                                count: projectCount
+                            ) {
+                                selectedTab = 3
+                            }
+
+                            NavigationButton(
+                                title: "Reminders",
+                                icon: "bell.fill",
+                                color: .orange,
+                                count: reminderCount
+                            ) {
+                                selectedTab = 4
                             }
                         }
                         .padding(.horizontal)
@@ -258,6 +324,47 @@ struct QuickActionButton: View {
             .frame(height: 100)
             .background(Color(.systemGray6))
             .cornerRadius(16)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Navigation Button
+struct NavigationButton: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let count: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 24))
+                    .foregroundStyle(color)
+                    .frame(width: 32)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.primary)
+                    Text("\(count) items")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity)
+            .background(Color(.systemGray6))
+            .cornerRadius(12)
         }
         .buttonStyle(.plain)
     }
