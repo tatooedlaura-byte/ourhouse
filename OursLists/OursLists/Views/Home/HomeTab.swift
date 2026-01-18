@@ -103,54 +103,7 @@ struct HomeTab: View {
                         .padding(.horizontal)
                     }
 
-                    // Quick Actions
-                    VStack(spacing: 16) {
-                        Text("Quick Actions")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-
-                        LazyVGrid(columns: [
-                            GridItem(.flexible()),
-                            GridItem(.flexible())
-                        ], spacing: 16) {
-                            QuickActionButton(
-                                title: "Add Grocery",
-                                icon: "cart.badge.plus",
-                                color: .green
-                            ) {
-                                showingAddGrocery = true
-                            }
-
-                            QuickActionButton(
-                                title: "Add Chore",
-                                icon: "plus.circle",
-                                color: .purple
-                            ) {
-                                showingAddChore = true
-                            }
-
-                            QuickActionButton(
-                                title: "New Project",
-                                icon: "folder.badge.plus",
-                                color: .blue
-                            ) {
-                                showingAddProject = true
-                            }
-
-                            QuickActionButton(
-                                title: "Add Reminder",
-                                icon: "bell.badge",
-                                color: .orange
-                            ) {
-                                showingAddReminder = true
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-
-                    // Go To section - navigation buttons
+                    // Go To section - large navigation buttons at top
                     VStack(spacing: 16) {
                         Text("Go To")
                             .font(.headline)
@@ -162,7 +115,7 @@ struct HomeTab: View {
                             GridItem(.flexible()),
                             GridItem(.flexible())
                         ], spacing: 16) {
-                            NavigationButton(
+                            LargeNavigationButton(
                                 title: "Groceries",
                                 icon: "cart.fill",
                                 color: .green,
@@ -171,7 +124,7 @@ struct HomeTab: View {
                                 selectedTab = 1
                             }
 
-                            NavigationButton(
+                            LargeNavigationButton(
                                 title: "Chores",
                                 icon: "checklist",
                                 color: .purple,
@@ -180,7 +133,7 @@ struct HomeTab: View {
                                 selectedTab = 2
                             }
 
-                            NavigationButton(
+                            LargeNavigationButton(
                                 title: "Projects",
                                 icon: "folder.fill",
                                 color: .blue,
@@ -189,13 +142,60 @@ struct HomeTab: View {
                                 selectedTab = 3
                             }
 
-                            NavigationButton(
+                            LargeNavigationButton(
                                 title: "Reminders",
                                 icon: "bell.fill",
                                 color: .orange,
                                 count: reminderCount
                             ) {
                                 selectedTab = 4
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+
+                    // Quick Actions - smaller buttons at bottom
+                    VStack(spacing: 16) {
+                        Text("Quick Actions")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+
+                        LazyVGrid(columns: [
+                            GridItem(.flexible()),
+                            GridItem(.flexible())
+                        ], spacing: 12) {
+                            SmallActionButton(
+                                title: "Add Grocery",
+                                icon: "cart.badge.plus",
+                                color: .green
+                            ) {
+                                showingAddGrocery = true
+                            }
+
+                            SmallActionButton(
+                                title: "Add Chore",
+                                icon: "plus.circle",
+                                color: .purple
+                            ) {
+                                showingAddChore = true
+                            }
+
+                            SmallActionButton(
+                                title: "New Project",
+                                icon: "folder.badge.plus",
+                                color: .blue
+                            ) {
+                                showingAddProject = true
+                            }
+
+                            SmallActionButton(
+                                title: "Add Reminder",
+                                icon: "bell.badge",
+                                color: .orange
+                            ) {
+                                showingAddReminder = true
                             }
                         }
                         .padding(.horizontal)
@@ -301,36 +301,8 @@ struct StatBadge: View {
     }
 }
 
-// MARK: - Quick Action Button
-struct QuickActionButton: View {
-    let title: String
-    let icon: String
-    let color: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 32))
-                    .foregroundStyle(color)
-
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.primary)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 100)
-            .background(Color(.systemGray6))
-            .cornerRadius(16)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Navigation Button
-struct NavigationButton: View {
+// MARK: - Large Navigation Button (for Go To section)
+struct LargeNavigationButton: View {
     let title: String
     let icon: String
     let color: Color
@@ -339,27 +311,50 @@ struct NavigationButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            VStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 24))
+                    .font(.system(size: 32))
                     .foregroundStyle(color)
-                    .frame(width: 32)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.primary)
-                    Text("\(count) items")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
 
-                Spacer()
-
-                Image(systemName: "chevron.right")
+                Text("\(count) items")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 110)
+            .background(Color(.systemGray6))
+            .cornerRadius(16)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Small Action Button (for Quick Actions section)
+struct SmallActionButton: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundStyle(color)
+                    .frame(width: 28)
+
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+
+                Spacer()
             }
             .padding(12)
             .frame(maxWidth: .infinity)
