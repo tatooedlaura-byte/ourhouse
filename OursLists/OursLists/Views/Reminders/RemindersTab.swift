@@ -8,6 +8,8 @@ struct RemindersTab: View {
 
     @State private var showingAddReminder = false
     @State private var showingSettings = false
+    @State private var newReminderTitle = ""
+    @FocusState private var isAddFieldFocused: Bool
 
     var reminders: [Reminder] {
         space.remindersArray.filter { !$0.isPaused }
@@ -32,49 +34,61 @@ struct RemindersTab: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if reminders.isEmpty && pausedReminders.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Reminders", systemImage: "bell")
-                    } description: {
-                        Text("Add reminders for things like monthly bills, pet medications, or filter changes")
-                    } actions: {
-                        Button("Add Reminder") {
-                            showingAddReminder = true
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                } else {
-                    List {
-                        if !upcomingReminders.isEmpty {
-                            Section("Coming Up") {
-                                ForEach(upcomingReminders) { reminder in
-                                    ReminderRow(reminder: reminder)
-                                }
+            List {
+                // Quick add section
+                Section {
+                    HStack {
+                        TextField("Add reminder...", text: $newReminderTitle)
+                            .focused($isAddFieldFocused)
+                            .onSubmit {
+                                quickAddReminder()
                             }
-                        }
 
-                        if !reminders.isEmpty {
-                            Section("All Reminders") {
-                                ForEach(reminders) { reminder in
-                                    ReminderRow(reminder: reminder)
-                                }
-                                .onDelete(perform: deleteReminders)
+                        if !newReminderTitle.isEmpty {
+                            Button {
+                                quickAddReminder()
+                            } label: {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundStyle(.orange)
                             }
                         }
-
-                        if !pausedReminders.isEmpty {
-                            Section("Paused") {
-                                ForEach(pausedReminders) { reminder in
-                                    ReminderRow(reminder: reminder)
-                                }
-                            }
-                        }
-                    }
-                    .refreshable {
-                        await persistenceController.performManualSync()
                     }
                 }
+
+                if reminders.isEmpty && pausedReminders.isEmpty {
+                    Section {
+                        Text("Add reminders for monthly bills, pet meds, filter changes")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if !upcomingReminders.isEmpty {
+                    Section("Coming Up") {
+                        ForEach(upcomingReminders) { reminder in
+                            ReminderRow(reminder: reminder)
+                        }
+                    }
+                }
+
+                if !reminders.isEmpty {
+                    Section("All Reminders") {
+                        ForEach(reminders) { reminder in
+                            ReminderRow(reminder: reminder)
+                        }
+                        .onDelete(perform: deleteReminders)
+                    }
+                }
+
+                if !pausedReminders.isEmpty {
+                    Section("Paused") {
+                        ForEach(pausedReminders) { reminder in
+                            ReminderRow(reminder: reminder)
+                        }
+                    }
+                }
+            }
+            .refreshable {
+                await persistenceController.performManualSync()
             }
             .navigationTitle("Reminders")
             .toolbar {
@@ -95,13 +109,21 @@ struct RemindersTab: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingAddReminder) {
-                AddReminderSheet(space: space)
+            .sheet(isPresented: $showingAddReminder, onDismiss: {
+                newReminderTitle = ""
+            }) {
+                AddReminderSheet(space: space, initialTitle: newReminderTitle)
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView(space: space)
             }
         }
+    }
+
+    private func quickAddReminder() {
+        guard !newReminderTitle.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        // Open the full sheet to set timing
+        showingAddReminder = true
     }
 
     private func deleteReminders(offsets: IndexSet) {
@@ -205,6 +227,7 @@ struct ReminderRow: View {
 // MARK: - Add Reminder Sheet
 struct AddReminderSheet: View {
     @ObservedObject var space: Space
+    var initialTitle: String = ""
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
 
@@ -213,6 +236,12 @@ struct AddReminderSheet: View {
     @State private var dayOfMonth = 1
     @State private var monthOfYear = 1
     @State private var notes = ""
+
+    init(space: Space, initialTitle: String = "") {
+        self.space = space
+        self.initialTitle = initialTitle
+        _title = State(initialValue: initialTitle)
+    }
 
     var body: some View {
         NavigationStack {

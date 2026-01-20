@@ -8,6 +8,8 @@ struct SettingsView: View {
     @EnvironmentObject var sharingService: CloudKitSharingService
     @EnvironmentObject var notificationService: NotificationService
 
+    @AppStorage("appearanceMode") private var appearanceMode: AppearanceMode = .system
+
     @State private var showingShareSheet = false
     @State private var showingEditSpace = false
     @State private var showingDeleteConfirmation = false
@@ -125,6 +127,19 @@ struct SettingsView: View {
                     Text("Notifications")
                 } footer: {
                     Text("Get reminded when chores and tasks are due.")
+                }
+
+                // Appearance
+                Section {
+                    Picker("Appearance", selection: $appearanceMode) {
+                        ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                } header: {
+                    Text("Appearance")
+                } footer: {
+                    Text("Choose light, dark, or match your device settings.")
                 }
 
                 // Danger Zone
@@ -474,6 +489,29 @@ struct EditSpaceSheet: View {
 
         try? viewContext.save()
         dismiss()
+    }
+}
+
+// MARK: - Appearance Mode
+enum AppearanceMode: String, CaseIterable {
+    case system = "system"
+    case light = "light"
+    case dark = "dark"
+
+    var displayName: String {
+        switch self {
+        case .system: return "System"
+        case .light: return "Light"
+        case .dark: return "Dark"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
     }
 }
 

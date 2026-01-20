@@ -129,6 +129,7 @@ struct ProjectDetailView: View {
 
         try? viewContext.save()
         newTaskTitle = ""
+        isAddFieldFocused = true
     }
 
     private func deleteTasks(_ offsets: IndexSet, from tasks: [ProjectTask]) {

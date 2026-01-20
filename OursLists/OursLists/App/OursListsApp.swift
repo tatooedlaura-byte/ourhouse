@@ -8,6 +8,7 @@ struct OursListsApp: App {
     @StateObject private var sharingService = CloudKitSharingService.shared
     @StateObject private var notificationService = NotificationService.shared
     @StateObject private var appState = AppState()
+    @AppStorage("appearanceMode") private var appearanceMode: AppearanceMode = .system
 
     var body: some Scene {
         WindowGroup {
@@ -17,6 +18,7 @@ struct OursListsApp: App {
                 .environmentObject(sharingService)
                 .environmentObject(notificationService)
                 .environmentObject(appState)
+                .preferredColorScheme(appearanceMode.colorScheme)
                 .onOpenURL { url in
                     // Handle CloudKit share acceptance URLs
                     handleIncomingURL(url)

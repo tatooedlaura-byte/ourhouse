@@ -10,6 +10,8 @@ struct ChoresTab: View {
     @State private var showingAddChore = false
     @State private var showingSettings = false
     @State private var selectedView: ChoreViewType = .today
+    @State private var newChoreTitle = ""
+    @FocusState private var isAddFieldFocused: Bool
 
     enum ChoreViewType: String, CaseIterable {
         case today = "Today"
@@ -110,40 +112,72 @@ struct ChoresTab: View {
 
     @ViewBuilder
     private var allView: some View {
-        if chores.isEmpty && pausedChores.isEmpty {
-            ContentUnavailableView {
-                Label("No Tasks", systemImage: "checklist")
-            } description: {
-                Text("Add recurring tasks to keep track of household things")
-            } actions: {
-                Button("Add Task") {
-                    showingAddChore = true
-                }
-                .buttonStyle(.borderedProminent)
-            }
-        } else {
-            List {
-                if !chores.isEmpty {
-                    Section("Active") {
-                        ForEach(chores) { chore in
-                            ChoreRow(chore: chore)
+        List {
+            // Quick add section
+            Section {
+                HStack {
+                    TextField("Add chore...", text: $newChoreTitle)
+                        .focused($isAddFieldFocused)
+                        .onSubmit {
+                            quickAddChore()
                         }
-                        .onDelete(perform: deleteChores)
-                    }
-                }
 
-                if !pausedChores.isEmpty {
-                    Section("Paused") {
-                        ForEach(pausedChores) { chore in
-                            ChoreRow(chore: chore)
+                    if !newChoreTitle.isEmpty {
+                        Button {
+                            quickAddChore()
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(.purple)
                         }
                     }
                 }
             }
-            .refreshable {
-                await persistenceController.performManualSync()
+
+            if chores.isEmpty && pausedChores.isEmpty {
+                Section {
+                    Text("Add chores to keep track of household tasks")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if !chores.isEmpty {
+                Section("Active") {
+                    ForEach(chores) { chore in
+                        ChoreRow(chore: chore)
+                    }
+                    .onDelete(perform: deleteChores)
+                }
+            }
+
+            if !pausedChores.isEmpty {
+                Section("Paused") {
+                    ForEach(pausedChores) { chore in
+                        ChoreRow(chore: chore)
+                    }
+                }
             }
         }
+        .refreshable {
+            await persistenceController.performManualSync()
+        }
+    }
+
+    private func quickAddChore() {
+        guard !newChoreTitle.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+
+        let chore = Chore(context: viewContext)
+        chore.id = UUID()
+        chore.title = newChoreTitle.trimmingCharacters(in: .whitespaces)
+        chore.frequencyEnum = .weekly
+        chore.isPaused = false
+        chore.createdAt = Date()
+        chore.space = space
+
+        try? viewContext.save()
+        newChoreTitle = ""
+        isAddFieldFocused = true
+
+        NotificationService.shared.scheduleChoreNotification(for: chore)
     }
 
     private func deleteChores(offsets: IndexSet) {
@@ -291,7 +325,7 @@ struct AddChoreSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Task Name", text: $title)
+                    TextField("Chore Name", text: $title)
 
                     // Duplicate warning
                     if matchingChore != nil {
@@ -410,7 +444,7 @@ struct EditChoreSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Task Name", text: $title)
+                    TextField("Chore Name", text: $title)
                 }
 
                 Section("Frequency") {
