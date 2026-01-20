@@ -32,14 +32,18 @@ struct HomeTab: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Welcome header
-                    VStack(spacing: 4) {
-                        Text("Welcome to")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Text(space.name ?? "Our Home")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
+                    // Welcome header with app icon
+                    VStack(spacing: 12) {
+                        AppIconView(size: 80)
+
+                        VStack(spacing: 4) {
+                            Text("Welcome to")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text(space.name ?? "Our Home")
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                        }
                     }
                     .padding(.top, 20)
 
@@ -315,6 +319,10 @@ struct QuickAddGrocerySheet: View {
 
     @State private var itemName = ""
     @State private var selectedList: GroceryList?
+    @State private var newListName = ""
+    @State private var showingCreateList = false
+    @State private var addedItems: [String] = []
+    @FocusState private var isItemFieldFocused: Bool
 
     var groceryLists: [GroceryList] {
         space.groceryListsArray
@@ -322,64 +330,165 @@ struct QuickAddGrocerySheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField("Item name", text: $itemName)
-                }
+            VStack(spacing: 0) {
+                Form {
+                    // List selection
+                    Section("Add to List") {
+                        if groceryLists.isEmpty && !showingCreateList {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("No grocery lists yet")
+                                    .foregroundStyle(.secondary)
 
-                Section("Add to List") {
-                    if groceryLists.isEmpty {
-                        Text("No grocery lists yet")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(groceryLists) { list in
-                            Button {
-                                selectedList = list
-                            } label: {
-                                HStack {
-                                    Text(list.name ?? "Untitled")
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                    if selectedList?.id == list.id {
-                                        Image(systemName: "checkmark")
-                                            .foregroundStyle(.blue)
+                                Button {
+                                    showingCreateList = true
+                                } label: {
+                                    Label("Create a List", systemImage: "plus.circle.fill")
+                                }
+                            }
+                        } else {
+                            ForEach(groceryLists) { list in
+                                Button {
+                                    selectedList = list
+                                    addedItems = [] // Clear when switching lists
+                                } label: {
+                                    HStack {
+                                        Image(systemName: selectedList?.id == list.id ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(selectedList?.id == list.id ? .green : .gray)
+                                        Text(list.name ?? "Untitled")
+                                            .foregroundStyle(.primary)
+                                        Spacer()
+                                        Text("\(list.itemsArray.count) items")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
                                     }
+                                }
+                            }
+
+                            if !showingCreateList {
+                                Button {
+                                    showingCreateList = true
+                                } label: {
+                                    Label("New List", systemImage: "plus")
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                        }
+
+                        if showingCreateList {
+                            HStack {
+                                TextField("List name", text: $newListName)
+                                    .onSubmit {
+                                        createList()
+                                    }
+
+                                Button {
+                                    createList()
+                                } label: {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                }
+                                .disabled(newListName.trimmingCharacters(in: .whitespaces).isEmpty)
+                            }
+                        }
+                    }
+
+                    // Add item input
+                    if selectedList != nil {
+                        Section {
+                            HStack {
+                                TextField("Item name", text: $itemName)
+                                    .focused($isItemFieldFocused)
+                                    .onSubmit {
+                                        addItem()
+                                    }
+
+                                if !itemName.isEmpty {
+                                    Button {
+                                        addItem()
+                                    } label: {
+                                        Image(systemName: "plus.circle.fill")
+                                            .font(.title2)
+                                            .foregroundStyle(.green)
+                                    }
+                                }
+                            }
+                        } header: {
+                            Text("Add Items")
+                        } footer: {
+                            Text("Press return or tap + to add each item")
+                        }
+                    }
+
+                    // Show added items
+                    if !addedItems.isEmpty {
+                        Section("Just Added ✓") {
+                            ForEach(addedItems, id: \.self) { item in
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                    Text(item)
                                 }
                             }
                         }
                     }
                 }
             }
-            .navigationTitle("Add Grocery Item")
+            .navigationTitle("Add Groceries")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { addItem() }
-                        .disabled(itemName.isEmpty || selectedList == nil)
+                    Button("Done") { dismiss() }
                 }
             }
             .onAppear {
                 selectedList = groceryLists.first
+                isItemFieldFocused = true
             }
         }
     }
 
+    private func createList() {
+        let trimmedName = newListName.trimmingCharacters(in: .whitespaces)
+        guard !trimmedName.isEmpty else { return }
+
+        let list = GroceryList(context: viewContext)
+        list.id = UUID()
+        list.name = trimmedName
+        list.createdAt = Date()
+        list.space = space
+
+        try? viewContext.save()
+
+        selectedList = list
+        newListName = ""
+        showingCreateList = false
+        addedItems = []
+        isItemFieldFocused = true
+    }
+
     private func addItem() {
         guard let list = selectedList else { return }
+        let trimmedName = itemName.trimmingCharacters(in: .whitespaces)
+        guard !trimmedName.isEmpty else { return }
 
         let item = GroceryItem(context: viewContext)
         item.id = UUID()
-        item.title = itemName.trimmingCharacters(in: .whitespaces)
+        item.title = trimmedName
         item.isChecked = false
         item.createdAt = Date()
         item.updatedAt = Date()
         item.groceryList = list
 
         try? viewContext.save()
-        dismiss()
+
+        // Show the item was added
+        withAnimation {
+            addedItems.insert(trimmedName, at: 0)
+        }
+
+        // Clear and refocus for next item
+        itemName = ""
+        isItemFieldFocused = true
     }
 }
 
@@ -536,5 +645,19 @@ struct ToBuySheet: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - App Icon View
+struct AppIconView: View {
+    let size: CGFloat
+
+    var body: some View {
+        Image("AppIconImage")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: size * 0.2237))
+            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
     }
 }
