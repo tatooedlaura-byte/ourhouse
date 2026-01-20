@@ -9,8 +9,12 @@ struct MainTabView: View {
         space.groceryListsArray.reduce(0) { $0 + $1.uncheckedCount }
     }
 
-    var taskCount: Int {
-        space.choresArray.filter { !$0.isPaused }.count
+    var choreCount: Int {
+        space.choresArray.filter { !$0.isPaused && ($0.isOverdue || $0.isDueToday || $0.isDueSoon) }.count
+    }
+
+    var reminderCount: Int {
+        space.remindersArray.filter { !$0.isPaused && ($0.isOverdue || $0.isDueToday || $0.isDueSoon) }.count
     }
 
     var projectCount: Int {
@@ -34,17 +38,24 @@ struct MainTabView: View {
 
             ChoresTab(space: space)
                 .tabItem {
-                    Label("Tasks", systemImage: "checklist")
+                    Label("Chores", systemImage: "checklist")
                 }
-                .badge(taskCount > 0 ? taskCount : 0)
+                .badge(choreCount > 0 ? choreCount : 0)
                 .tag(2)
+
+            RemindersTab(space: space)
+                .tabItem {
+                    Label("Reminders", systemImage: "bell.fill")
+                }
+                .badge(reminderCount > 0 ? reminderCount : 0)
+                .tag(3)
 
             ProjectsTab(space: space)
                 .tabItem {
                     Label("Projects", systemImage: "folder.fill")
                 }
                 .badge(projectCount > 0 ? projectCount : 0)
-                .tag(3)
+                .tag(4)
         }
     }
 }

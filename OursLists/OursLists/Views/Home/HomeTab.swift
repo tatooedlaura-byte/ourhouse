@@ -7,23 +7,13 @@ struct HomeTab: View {
     @EnvironmentObject var sharingService: CloudKitSharingService
 
     @State private var showingAddGrocery = false
-    @State private var showingAddTask = false
+    @State private var showingAddChore = false
+    @State private var showingAddReminder = false
     @State private var showingAddProject = false
     @State private var showingSettings = false
     @State private var showingOverdue = false
     @State private var showingDueToday = false
     @State private var showingToBuy = false
-
-    // Counts for navigation buttons
-    var groceryCount: Int {
-        space.groceryListsArray.reduce(0) { $0 + $1.uncheckedCount }
-    }
-    var taskCount: Int {
-        space.choresArray.filter { !$0.isPaused }.count
-    }
-    var projectCount: Int {
-        space.projectsArray.filter { !$0.isArchived }.count
-    }
 
     // Quick stats
     var overdueTasks: Int {
@@ -99,50 +89,7 @@ struct HomeTab: View {
                         .padding(.horizontal)
                     }
 
-                    // Go To section - large navigation buttons
-                    VStack(spacing: 16) {
-                        Text("Go To")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-
-                        LazyVGrid(columns: [
-                            GridItem(.flexible()),
-                            GridItem(.flexible()),
-                            GridItem(.flexible())
-                        ], spacing: 16) {
-                            LargeNavigationButton(
-                                title: "Groceries",
-                                icon: "cart.fill",
-                                color: .green,
-                                count: groceryCount
-                            ) {
-                                selectedTab = 1
-                            }
-
-                            LargeNavigationButton(
-                                title: "Tasks",
-                                icon: "checklist",
-                                color: .purple,
-                                count: taskCount
-                            ) {
-                                selectedTab = 2
-                            }
-
-                            LargeNavigationButton(
-                                title: "Projects",
-                                icon: "folder.fill",
-                                color: .blue,
-                                count: projectCount
-                            ) {
-                                selectedTab = 3
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-
-                    // Quick Actions - smaller buttons
+                    // Quick Actions
                     VStack(spacing: 16) {
                         Text("Quick Actions")
                             .font(.headline)
@@ -151,7 +98,6 @@ struct HomeTab: View {
                             .padding(.horizontal)
 
                         LazyVGrid(columns: [
-                            GridItem(.flexible()),
                             GridItem(.flexible()),
                             GridItem(.flexible())
                         ], spacing: 12) {
@@ -164,11 +110,19 @@ struct HomeTab: View {
                             }
 
                             SmallActionButton(
-                                title: "Task",
-                                icon: "plus.circle",
+                                title: "Chore",
+                                icon: "checklist",
                                 color: .purple
                             ) {
-                                showingAddTask = true
+                                showingAddChore = true
+                            }
+
+                            SmallActionButton(
+                                title: "Reminder",
+                                icon: "bell.badge.fill",
+                                color: .orange
+                            ) {
+                                showingAddReminder = true
                             }
 
                             SmallActionButton(
@@ -220,8 +174,11 @@ struct HomeTab: View {
             .sheet(isPresented: $showingAddGrocery) {
                 QuickAddGrocerySheet(space: space)
             }
-            .sheet(isPresented: $showingAddTask) {
+            .sheet(isPresented: $showingAddChore) {
                 AddChoreSheet(space: space)
+            }
+            .sheet(isPresented: $showingAddReminder) {
+                AddReminderSheet(space: space)
             }
             .sheet(isPresented: $showingAddProject) {
                 AddProjectSheet(space: space)
@@ -276,39 +233,6 @@ struct StatBadge: View {
         .padding(.vertical, 12)
         .background(color.opacity(0.1))
         .cornerRadius(12)
-    }
-}
-
-// MARK: - Large Navigation Button
-struct LargeNavigationButton: View {
-    let title: String
-    let icon: String
-    let color: Color
-    let count: Int
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 28))
-                    .foregroundStyle(color)
-
-                Text(title)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.primary)
-
-                Text("\(count)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 90)
-            .background(Color(.systemGray6))
-            .cornerRadius(16)
-        }
-        .buttonStyle(.plain)
     }
 }
 

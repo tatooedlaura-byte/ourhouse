@@ -5,6 +5,7 @@ import CoreData
 public class Chore: NSManagedObject {
     // Frequency enum
     enum Frequency: String, CaseIterable {
+        case oneTime = "One-time"
         case daily = "Daily"
         case weekly = "Weekly"
         case biweekly = "Biweekly"
@@ -13,6 +14,7 @@ public class Chore: NSManagedObject {
 
         var days: Int {
             switch self {
+            case .oneTime: return 0
             case .daily: return 1
             case .weekly: return 7
             case .biweekly: return 14
@@ -52,6 +54,11 @@ public class Chore: NSManagedObject {
 
     // Computed: next due date
     var nextDueAt: Date? {
+        // One-time tasks: due now if not done, no next date if done
+        if frequencyEnum == .oneTime {
+            return lastDoneAt == nil ? (createdAt ?? Date()) : nil
+        }
+
         guard let lastDone = lastDoneAt else {
             // If never done, it's due now
             return createdAt ?? Date()
@@ -67,21 +74,28 @@ public class Chore: NSManagedObject {
         return Calendar.current.date(byAdding: .day, value: daysToAdd, to: lastDone)
     }
 
-    // Computed: is overdue
+    // Computed: is overdue (at least 1 day past due - not just "due today")
     var isOverdue: Bool {
         guard !isPaused, let dueDate = nextDueAt else { return false }
-        return dueDate < Date()
+        // One-time tasks are never "overdue" - no deadline pressure
+        if frequencyEnum == .oneTime { return false }
+        // Only overdue if the due date was before today (not just earlier today)
+        return !Calendar.current.isDateInToday(dueDate) && dueDate < Date()
     }
 
     // Computed: is due today
     var isDueToday: Bool {
         guard !isPaused, let dueDate = nextDueAt else { return false }
+        // One-time tasks always show as "due today" until completed
+        if frequencyEnum == .oneTime { return true }
         return Calendar.current.isDateInToday(dueDate)
     }
 
     // Computed: is due soon (within 2 days)
     var isDueSoon: Bool {
         guard !isPaused, let dueDate = nextDueAt else { return false }
+        // One-time tasks handled by isDueToday
+        if frequencyEnum == .oneTime { return false }
         let twoDaysFromNow = Calendar.current.date(byAdding: .day, value: 2, to: Date()) ?? Date()
         return dueDate <= twoDaysFromNow && dueDate >= Date()
     }
@@ -124,9 +138,17 @@ public class Chore: NSManagedObject {
         return timeAgo
     }
 
+    // Computed: is completed (for one-time tasks)
+    var isCompleted: Bool {
+        frequencyEnum == .oneTime && lastDoneAt != nil
+    }
+
     // Human-readable due description
     var dueDescription: String {
         guard !isPaused else { return "Paused" }
+        if isCompleted { return "Done" }
+        // One-time tasks just show "To do" - no deadline pressure
+        if frequencyEnum == .oneTime { return "To do" }
         guard let dueDate = nextDueAt else { return "No due date" }
 
         if isOverdue {

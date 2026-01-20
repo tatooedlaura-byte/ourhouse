@@ -144,6 +144,7 @@ struct GroceryListDetailView: View {
 
         try? viewContext.save()
         newItemTitle = ""
+        isAddFieldFocused = true
     }
 
     private func deleteItems(_ offsets: IndexSet, from items: [GroceryItem]) {

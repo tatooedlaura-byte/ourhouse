@@ -13,6 +13,7 @@ class NotificationService: ObservableObject {
     // Notification identifier prefixes
     private static let chorePrefix = "chore-"
     private static let taskPrefix = "task-"
+    private static let reminderPrefix = "reminder-"
 
     init() {
         checkAuthorizationStatus()
@@ -132,6 +133,50 @@ class NotificationService: ObservableObject {
         }
     }
 
+    // MARK: - Reminder Notifications
+
+    func scheduleReminderNotification(for reminder: Reminder) {
+        guard let reminderId = reminder.id?.uuidString,
+              let title = reminder.title,
+              let dueDate = reminder.nextDueAt,
+              !reminder.isPaused else {
+            return
+        }
+
+        // Cancel existing notification for this reminder
+        cancelNotification(for: reminderId, prefix: Self.reminderPrefix)
+
+        // Don't schedule if already overdue
+        guard dueDate > Date() else { return }
+
+        // Schedule notification for the morning of the due date (9:00 AM)
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: dueDate)
+        components.hour = 9
+        components.minute = 0
+
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+
+        let content = UNMutableNotificationContent()
+        content.title = "Reminder Due Today"
+        content.body = title
+        content.subtitle = reminder.recurrenceDescription
+        content.sound = .default
+        content.categoryIdentifier = "REMINDER"
+        content.userInfo = ["reminderId": reminderId]
+
+        let request = UNNotificationRequest(
+            identifier: "\(Self.reminderPrefix)\(reminderId)",
+            content: content,
+            trigger: trigger
+        )
+
+        center.add(request) { error in
+            if let error = error {
+                print("Error scheduling reminder notification: \(error)")
+            }
+        }
+    }
+
     // MARK: - Cancel Notifications
 
     func cancelNotification(for id: String, prefix: String) {
@@ -146,6 +191,11 @@ class NotificationService: ObservableObject {
     func cancelTaskNotification(for task: ProjectTask) {
         guard let taskId = task.id?.uuidString else { return }
         cancelNotification(for: taskId, prefix: Self.taskPrefix)
+    }
+
+    func cancelReminderNotification(for reminder: Reminder) {
+        guard let reminderId = reminder.id?.uuidString else { return }
+        cancelNotification(for: reminderId, prefix: Self.reminderPrefix)
     }
 
     // MARK: - Reschedule All
@@ -171,6 +221,16 @@ class NotificationService: ObservableObject {
         if let tasks = try? context.fetch(taskRequest) {
             for task in tasks {
                 scheduleTaskNotification(for: task)
+            }
+        }
+
+        // Reschedule reminders
+        let reminderRequest: NSFetchRequest<Reminder> = Reminder.fetchRequest()
+        reminderRequest.predicate = NSPredicate(format: "isPaused == NO")
+
+        if let reminders = try? context.fetch(reminderRequest) {
+            for reminder in reminders {
+                scheduleReminderNotification(for: reminder)
             }
         }
     }

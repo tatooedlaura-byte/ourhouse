@@ -60,7 +60,7 @@ struct ChoresTab: View {
                     }
                 }
             }
-            .navigationTitle("Tasks")
+            .navigationTitle("Chores")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
