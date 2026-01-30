@@ -1,55 +1,37 @@
 import SwiftUI
-import CoreData
 
 struct RemindersTab: View {
-    @ObservedObject var space: Space
-    @Environment(\.managedObjectContext) private var viewContext
-    @EnvironmentObject var persistenceController: PersistenceController
+    @EnvironmentObject var spaceVM: SpaceViewModel
 
     @State private var showingAddReminder = false
     @State private var showingSettings = false
     @State private var newReminderTitle = ""
     @FocusState private var isAddFieldFocused: Bool
 
-    var reminders: [Reminder] {
-        space.remindersArray.filter { !$0.isPaused }
-    }
+    var reminders: [ReminderModel] { spaceVM.reminders.filter { !$0.isPaused } }
 
-    var upcomingReminders: [Reminder] {
+    var upcomingReminders: [ReminderModel] {
         reminders.filter { $0.isDueSoon || $0.isDueToday || $0.isOverdue }
-            .sorted { reminder1, reminder2 in
-                if reminder1.isOverdue != reminder2.isOverdue {
-                    return reminder1.isOverdue
-                }
-                if reminder1.isDueToday != reminder2.isDueToday {
-                    return reminder1.isDueToday
-                }
-                return (reminder1.nextDueAt ?? Date()) < (reminder2.nextDueAt ?? Date())
+            .sorted { r1, r2 in
+                if r1.isOverdue != r2.isOverdue { return r1.isOverdue }
+                if r1.isDueToday != r2.isDueToday { return r1.isDueToday }
+                return (r1.nextDueAt ?? Date()) < (r2.nextDueAt ?? Date())
             }
     }
 
-    var pausedReminders: [Reminder] {
-        space.remindersArray.filter { $0.isPaused }
-    }
+    var pausedReminders: [ReminderModel] { spaceVM.reminders.filter { $0.isPaused } }
 
     var body: some View {
         NavigationStack {
             List {
-                // Quick add section
                 Section {
                     HStack {
                         TextField("Add reminder...", text: $newReminderTitle)
                             .focused($isAddFieldFocused)
-                            .onSubmit {
-                                quickAddReminder()
-                            }
-
+                            .onSubmit { quickAddReminder() }
                         if !newReminderTitle.isEmpty {
-                            Button {
-                                quickAddReminder()
-                            } label: {
-                                Image(systemName: "plus.circle.fill")
-                                    .foregroundStyle(.orange)
+                            Button { quickAddReminder() } label: {
+                                Image(systemName: "plus.circle.fill").foregroundStyle(.orange)
                             }
                         }
                     }
@@ -75,7 +57,11 @@ struct RemindersTab: View {
                         ForEach(reminders) { reminder in
                             ReminderRow(reminder: reminder)
                         }
-                        .onDelete(perform: deleteReminders)
+                        .onDelete { offsets in
+                            for i in offsets {
+                                Task { await spaceVM.deleteReminder(reminders[i]) }
+                            }
+                        }
                     }
                 }
 
@@ -87,65 +73,40 @@ struct RemindersTab: View {
                     }
                 }
             }
-            .refreshable {
-                await persistenceController.performManualSync()
-            }
             .navigationTitle("Reminders")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showingAddReminder = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
+                    Button { showingAddReminder = true } label: { Image(systemName: "plus") }
                 }
-
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.body)
+                    Button { showingSettings = true } label: {
+                        Image(systemName: "gearshape").font(.body)
                     }
                 }
             }
-            .sheet(isPresented: $showingAddReminder, onDismiss: {
-                newReminderTitle = ""
-            }) {
-                AddReminderSheet(space: space, initialTitle: newReminderTitle)
+            .sheet(isPresented: $showingAddReminder, onDismiss: { newReminderTitle = "" }) {
+                AddReminderSheet(initialTitle: newReminderTitle)
             }
-            .sheet(isPresented: $showingSettings) {
-                SettingsView(space: space)
-            }
+            .sheet(isPresented: $showingSettings) { SettingsView() }
         }
     }
 
     private func quickAddReminder() {
         guard !newReminderTitle.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        // Open the full sheet to set timing
         showingAddReminder = true
-    }
-
-    private func deleteReminders(offsets: IndexSet) {
-        withAnimation {
-            offsets.map { reminders[$0] }.forEach(viewContext.delete)
-            try? viewContext.save()
-        }
     }
 }
 
 // MARK: - Reminder Row
 struct ReminderRow: View {
-    @ObservedObject var reminder: Reminder
-    @Environment(\.managedObjectContext) private var viewContext
-
+    let reminder: ReminderModel
+    @EnvironmentObject var spaceVM: SpaceViewModel
     @State private var showingEdit = false
 
     var body: some View {
         HStack(spacing: 12) {
-            // Done button
             Button {
-                markDone()
+                Task { await spaceVM.markReminderDone(reminder) }
             } label: {
                 Image(systemName: "checkmark.circle")
                     .font(.title2)
@@ -154,19 +115,14 @@ struct ReminderRow: View {
             .buttonStyle(.plain)
             .disabled(reminder.isPaused)
 
-            // Content
             VStack(alignment: .leading, spacing: 4) {
-                Text(reminder.title ?? "")
+                Text(reminder.title)
                     .foregroundStyle(reminder.isPaused ? .secondary : .primary)
-
                 HStack(spacing: 8) {
-                    // Due label
                     Text(reminder.dueDescription)
                         .font(.caption)
                         .foregroundStyle(reminder.isOverdue ? .red : .secondary)
-
-                    // Recurrence
-                    Text("• \(reminder.recurrenceTypeEnum.rawValue)")
+                    Text("• \(reminder.recurrenceEnum.rawValue)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -174,26 +130,22 @@ struct ReminderRow: View {
 
             Spacer()
 
-            // Bell icon
             Image(systemName: "bell.fill")
                 .font(.caption)
                 .foregroundStyle(.orange)
         }
         .contentShape(Rectangle())
-        .onTapGesture {
-            showingEdit = true
-        }
+        .onTapGesture { showingEdit = true }
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
-                viewContext.delete(reminder)
-                try? viewContext.save()
+                Task { await spaceVM.deleteReminder(reminder) }
             } label: {
                 Label("Delete", systemImage: "trash")
             }
-
             Button {
-                reminder.isPaused.toggle()
-                try? viewContext.save()
+                var updated = reminder
+                updated.isPaused.toggle()
+                Task { await spaceVM.updateReminder(updated) }
             } label: {
                 Label(reminder.isPaused ? "Resume" : "Pause", systemImage: reminder.isPaused ? "play" : "pause")
             }
@@ -201,44 +153,31 @@ struct ReminderRow: View {
         }
         .swipeActions(edge: .leading) {
             Button {
-                markDone()
+                Task { await spaceVM.markReminderDone(reminder) }
             } label: {
                 Label("Done", systemImage: "checkmark")
             }
             .tint(.green)
-            .disabled(reminder.isPaused)
         }
         .sheet(isPresented: $showingEdit) {
             EditReminderSheet(reminder: reminder)
-        }
-    }
-
-    private func markDone() {
-        withAnimation {
-            reminder.markDone()
-            try? viewContext.save()
-
-            // Reschedule notification for next occurrence
-            NotificationService.shared.scheduleReminderNotification(for: reminder)
         }
     }
 }
 
 // MARK: - Add Reminder Sheet
 struct AddReminderSheet: View {
-    @ObservedObject var space: Space
     var initialTitle: String = ""
-    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var spaceVM: SpaceViewModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var title = ""
-    @State private var recurrenceType: Reminder.RecurrenceType = .monthly
+    @State private var recurrenceType: RecurrenceType = .monthly
     @State private var dayOfMonth = 1
     @State private var monthOfYear = 1
     @State private var notes = ""
 
-    init(space: Space, initialTitle: String = "") {
-        self.space = space
+    init(initialTitle: String = "") {
         self.initialTitle = initialTitle
         _title = State(initialValue: initialTitle)
     }
@@ -254,17 +193,13 @@ struct AddReminderSheet: View {
 
                 Section("Recurrence") {
                     Picker("Repeat", selection: $recurrenceType) {
-                        ForEach(Reminder.RecurrenceType.allCases, id: \.self) { type in
+                        ForEach(RecurrenceType.allCases, id: \.self) { type in
                             Text(type.rawValue).tag(type)
                         }
                     }
-
                     Picker("Day of Month", selection: $dayOfMonth) {
-                        ForEach(1...28, id: \.self) { day in
-                            Text("\(day)").tag(day)
-                        }
+                        ForEach(1...28, id: \.self) { day in Text("\(day)").tag(day) }
                     }
-
                     if recurrenceType == .yearly {
                         Picker("Month", selection: $monthOfYear) {
                             ForEach(1...12, id: \.self) { month in
@@ -275,64 +210,53 @@ struct AddReminderSheet: View {
                 }
 
                 Section {
-                    TextField("Notes (optional)", text: $notes, axis: .vertical)
-                        .lineLimit(3)
+                    TextField("Notes (optional)", text: $notes, axis: .vertical).lineLimit(3)
                 }
             }
             .navigationTitle("New Reminder")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { addReminder() }
-                        .disabled(title.isEmpty)
+                    Button("Add") {
+                        let reminder = ReminderModel(
+                            title: title,
+                            recurrenceType: recurrenceType.rawValue,
+                            dayOfMonth: dayOfMonth,
+                            monthOfYear: monthOfYear,
+                            notes: notes.isEmpty ? nil : notes
+                        )
+                        Task {
+                            await spaceVM.addReminder(reminder)
+                            dismiss()
+                        }
+                    }
+                    .disabled(title.isEmpty)
                 }
             }
         }
-    }
-
-    private func addReminder() {
-        let reminder = Reminder(context: viewContext)
-        reminder.id = UUID()
-        reminder.title = title
-        reminder.recurrenceTypeEnum = recurrenceType
-        reminder.dayOfMonth = Int16(dayOfMonth)
-        reminder.monthOfYear = Int16(monthOfYear)
-        reminder.notes = notes.isEmpty ? nil : notes
-        reminder.isPaused = false
-        reminder.createdAt = Date()
-        reminder.space = space
-
-        try? viewContext.save()
-
-        // Schedule notification
-        NotificationService.shared.scheduleReminderNotification(for: reminder)
-
-        dismiss()
     }
 }
 
 // MARK: - Edit Reminder Sheet
 struct EditReminderSheet: View {
-    @ObservedObject var reminder: Reminder
-    @Environment(\.managedObjectContext) private var viewContext
+    let reminder: ReminderModel
+    @EnvironmentObject var spaceVM: SpaceViewModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var title: String
-    @State private var recurrenceType: Reminder.RecurrenceType
+    @State private var recurrenceType: RecurrenceType
     @State private var dayOfMonth: Int
     @State private var monthOfYear: Int
     @State private var notes: String
     @State private var isPaused: Bool
 
-    init(reminder: Reminder) {
+    init(reminder: ReminderModel) {
         self.reminder = reminder
-        _title = State(initialValue: reminder.title ?? "")
-        _recurrenceType = State(initialValue: reminder.recurrenceTypeEnum)
-        _dayOfMonth = State(initialValue: Int(reminder.dayOfMonth))
-        _monthOfYear = State(initialValue: Int(reminder.monthOfYear))
+        _title = State(initialValue: reminder.title)
+        _recurrenceType = State(initialValue: reminder.recurrenceEnum)
+        _dayOfMonth = State(initialValue: reminder.dayOfMonth)
+        _monthOfYear = State(initialValue: reminder.monthOfYear)
         _notes = State(initialValue: reminder.notes ?? "")
         _isPaused = State(initialValue: reminder.isPaused)
     }
@@ -340,36 +264,25 @@ struct EditReminderSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    TextField("Reminder Name", text: $title)
-                }
+                Section { TextField("Reminder Name", text: $title) }
 
                 Section("Recurrence") {
                     Picker("Repeat", selection: $recurrenceType) {
-                        ForEach(Reminder.RecurrenceType.allCases, id: \.self) { type in
-                            Text(type.rawValue).tag(type)
-                        }
+                        ForEach(RecurrenceType.allCases, id: \.self) { t in Text(t.rawValue).tag(t) }
                     }
-
                     Picker("Day of Month", selection: $dayOfMonth) {
-                        ForEach(1...28, id: \.self) { day in
-                            Text("\(day)").tag(day)
-                        }
+                        ForEach(1...28, id: \.self) { day in Text("\(day)").tag(day) }
                     }
-
                     if recurrenceType == .yearly {
                         Picker("Month", selection: $monthOfYear) {
-                            ForEach(1...12, id: \.self) { month in
-                                Text(DateFormatter().monthSymbols[month - 1]).tag(month)
+                            ForEach(1...12, id: \.self) { m in
+                                Text(DateFormatter().monthSymbols[m - 1]).tag(m)
                             }
                         }
                     }
                 }
 
-                Section {
-                    TextField("Notes", text: $notes, axis: .vertical)
-                        .lineLimit(3)
-                }
+                Section { TextField("Notes", text: $notes, axis: .vertical).lineLimit(3) }
 
                 Section {
                     Toggle("Paused", isOn: $isPaused)
@@ -382,8 +295,7 @@ struct EditReminderSheet: View {
                         HStack {
                             Text("Last Completed")
                             Spacer()
-                            Text(reminder.lastCompletedAt!, style: .date)
-                                .foregroundStyle(.secondary)
+                            Text(reminder.lastCompletedAt!, style: .date).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -391,34 +303,24 @@ struct EditReminderSheet: View {
             .navigationTitle("Edit Reminder")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { saveReminder() }
-                        .disabled(title.isEmpty)
+                    Button("Save") {
+                        var updated = reminder
+                        updated.title = title
+                        updated.recurrenceType = recurrenceType.rawValue
+                        updated.dayOfMonth = dayOfMonth
+                        updated.monthOfYear = monthOfYear
+                        updated.notes = notes.isEmpty ? nil : notes
+                        updated.isPaused = isPaused
+                        Task {
+                            await spaceVM.updateReminder(updated)
+                            dismiss()
+                        }
+                    }
+                    .disabled(title.isEmpty)
                 }
             }
         }
-    }
-
-    private func saveReminder() {
-        reminder.title = title
-        reminder.recurrenceTypeEnum = recurrenceType
-        reminder.dayOfMonth = Int16(dayOfMonth)
-        reminder.monthOfYear = Int16(monthOfYear)
-        reminder.notes = notes.isEmpty ? nil : notes
-        reminder.isPaused = isPaused
-
-        try? viewContext.save()
-
-        // Update notification
-        if isPaused {
-            NotificationService.shared.cancelReminderNotification(for: reminder)
-        } else {
-            NotificationService.shared.scheduleReminderNotification(for: reminder)
-        }
-
-        dismiss()
     }
 }

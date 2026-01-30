@@ -1,22 +1,18 @@
 import SwiftUI
 
 struct OnboardingView: View {
-    @EnvironmentObject var sharingService: CloudKitSharingService
-    @EnvironmentObject var persistenceController: PersistenceController
-    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var spaceVM: SpaceViewModel
+    @EnvironmentObject var authService: AuthenticationService
 
     @State private var householdName = "Our Home"
     @State private var ownerName = ""
     @State private var showingCreateSpace = false
-    @State private var showingError = false
-    @State private var errorMessage = ""
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 32) {
                 Spacer()
 
-                // App Icon/Logo area
                 VStack(spacing: 16) {
                     Image(systemName: "house.fill")
                         .font(.system(size: 80))
@@ -33,12 +29,28 @@ struct OnboardingView: View {
 
                 Spacer()
 
-                // iCloud Status
-                iCloudStatusView
+                // Signed in status
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Signed in as \(authService.displayName)")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Text(authService.email)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                .padding(.horizontal, 32)
 
                 Spacer()
 
-                // Actions
                 VStack(spacing: 16) {
                     Button {
                         showingCreateSpace = true
@@ -69,50 +81,19 @@ struct OnboardingView: View {
                     onComplete: createSpace
                 )
             }
-            .alert("Error", isPresented: $showingError) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(errorMessage)
-            }
         }
-    }
-
-    @ViewBuilder
-    private var iCloudStatusView: some View {
-        HStack(spacing: 12) {
-            Image(systemName: sharingService.iCloudAvailable ? "checkmark.icloud.fill" : "xmark.icloud.fill")
-                .font(.title2)
-                .foregroundStyle(sharingService.iCloudAvailable ? .green : .red)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(sharingService.iCloudAvailable ? "iCloud Connected" : "iCloud Not Available")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-
-                if !sharingService.iCloudAvailable {
-                    Text("Sign in to iCloud in Settings to enable sharing")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
-        .padding(.horizontal, 32)
     }
 
     private func createSpace() {
-        guard !householdName.isEmpty else {
-            errorMessage = "Please enter a household name"
-            showingError = true
-            return
+        let name = ownerName.isEmpty ? authService.displayName : ownerName
+        Task {
+            await spaceVM.createSpace(
+                name: householdName,
+                ownerName: name,
+                uid: authService.uid,
+                email: authService.email
+            )
         }
-
-        let name = ownerName.isEmpty ? "Me" : ownerName
-        _ = persistenceController.createDefaultSpace(name: householdName, ownerName: name)
         showingCreateSpace = false
     }
 }
@@ -146,24 +127,13 @@ struct CreateSpaceSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        onComplete()
-                    }
-                    .disabled(householdName.isEmpty)
+                    Button("Create") { onComplete() }
+                        .disabled(householdName.isEmpty)
                 }
             }
         }
     }
-}
-
-#Preview {
-    OnboardingView()
-        .environmentObject(CloudKitSharingService.shared)
-        .environmentObject(PersistenceController.preview)
-        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }

@@ -1,10 +1,9 @@
 import SwiftUI
 
 struct HomeTab: View {
-    @ObservedObject var space: Space
+    @EnvironmentObject var spaceVM: SpaceViewModel
+    @EnvironmentObject var authService: AuthenticationService
     @Binding var selectedTab: Int
-    @Environment(\.managedObjectContext) private var viewContext
-    @EnvironmentObject var sharingService: CloudKitSharingService
 
     @State private var showingAddGrocery = false
     @State private var showingAddChore = false
@@ -15,77 +14,61 @@ struct HomeTab: View {
     @State private var showingDueToday = false
     @State private var showingToBuy = false
 
-    // Quick stats
     var overdueTasks: Int {
-        space.choresArray.filter { $0.isOverdue && !$0.isPaused }.count
+        spaceVM.chores.filter { $0.isOverdue && !$0.isPaused }.count
     }
 
     var dueTodayTasks: Int {
-        space.choresArray.filter { $0.isDueToday && !$0.isPaused }.count
+        spaceVM.chores.filter { $0.isDueToday && !$0.isPaused }.count
     }
 
     var groceryItemsNeeded: Int {
-        space.groceryListsArray.reduce(0) { $0 + $1.uncheckedCount }
+        spaceVM.groceryLists.count
+    }
+
+    var todayChores: [ChoreModel] {
+        spaceVM.chores
+            .filter { ($0.isOverdue || $0.isDueToday) && !$0.isPaused }
+            .sorted { chore1, chore2 in
+                if chore1.isOverdue != chore2.isOverdue { return chore1.isOverdue }
+                return (chore1.nextDueAt ?? Date()) < (chore2.nextDueAt ?? Date())
+            }
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Welcome header with app icon
                     VStack(spacing: 12) {
                         AppIconView(size: 80)
-
                         VStack(spacing: 4) {
                             Text("Welcome to")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                            Text(space.name ?? "Our Home")
+                            Text(spaceVM.space?.name ?? "Our Home")
                                 .font(.largeTitle)
                                 .fontWeight(.bold)
                         }
                     }
                     .padding(.top, 20)
 
-                    // Quick stats banner
                     if overdueTasks > 0 || dueTodayTasks > 0 || groceryItemsNeeded > 0 {
                         HStack(spacing: 16) {
                             if overdueTasks > 0 {
-                                Button {
-                                    showingOverdue = true
-                                } label: {
-                                    StatBadge(
-                                        count: overdueTasks,
-                                        label: "Overdue",
-                                        color: .red,
-                                        icon: "exclamationmark.circle.fill"
-                                    )
+                                Button { showingOverdue = true } label: {
+                                    StatBadge(count: overdueTasks, label: "Overdue", color: .red, icon: "exclamationmark.circle.fill")
                                 }
                                 .buttonStyle(.plain)
                             }
                             if dueTodayTasks > 0 {
-                                Button {
-                                    showingDueToday = true
-                                } label: {
-                                    StatBadge(
-                                        count: dueTodayTasks,
-                                        label: "Due Today",
-                                        color: .orange,
-                                        icon: "clock.fill"
-                                    )
+                                Button { showingDueToday = true } label: {
+                                    StatBadge(count: dueTodayTasks, label: "Due Today", color: .orange, icon: "clock.fill")
                                 }
                                 .buttonStyle(.plain)
                             }
                             if groceryItemsNeeded > 0 {
-                                Button {
-                                    showingToBuy = true
-                                } label: {
-                                    StatBadge(
-                                        count: groceryItemsNeeded,
-                                        label: "To Buy",
-                                        color: .blue,
-                                        icon: "cart.fill"
-                                    )
+                                Button { showingToBuy = true } label: {
+                                    StatBadge(count: groceryItemsNeeded, label: "Lists", color: .blue, icon: "cart.fill")
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -93,7 +76,6 @@ struct HomeTab: View {
                         .padding(.horizontal)
                     }
 
-                    // Quick Actions
                     VStack(spacing: 16) {
                         Text("Quick Actions")
                             .font(.headline)
@@ -101,47 +83,16 @@ struct HomeTab: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal)
 
-                        LazyVGrid(columns: [
-                            GridItem(.flexible()),
-                            GridItem(.flexible())
-                        ], spacing: 12) {
-                            SmallActionButton(
-                                title: "Grocery",
-                                icon: "cart.badge.plus",
-                                color: .green
-                            ) {
-                                showingAddGrocery = true
-                            }
-
-                            SmallActionButton(
-                                title: "Chore",
-                                icon: "checklist",
-                                color: .purple
-                            ) {
-                                showingAddChore = true
-                            }
-
-                            SmallActionButton(
-                                title: "Reminder",
-                                icon: "bell.badge.fill",
-                                color: .orange
-                            ) {
-                                showingAddReminder = true
-                            }
-
-                            SmallActionButton(
-                                title: "Project",
-                                icon: "folder.badge.plus",
-                                color: .blue
-                            ) {
-                                showingAddProject = true
-                            }
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                            SmallActionButton(title: "Grocery", icon: "cart.badge.plus", color: .green) { showingAddGrocery = true }
+                            SmallActionButton(title: "Chore", icon: "checklist", color: .purple) { showingAddChore = true }
+                            SmallActionButton(title: "Reminder", icon: "bell.badge.fill", color: .orange) { showingAddReminder = true }
+                            SmallActionButton(title: "Project", icon: "folder.badge.plus", color: .blue) { showingAddProject = true }
                         }
                         .padding(.horizontal)
                     }
 
-                    // Due Today section
-                    if !todayTasks.isEmpty {
+                    if !todayChores.isEmpty {
                         VStack(spacing: 12) {
                             HStack {
                                 Text("Due Today")
@@ -151,8 +102,8 @@ struct HomeTab: View {
                             .padding(.horizontal)
 
                             VStack(spacing: 8) {
-                                ForEach(todayTasks.prefix(5)) { task in
-                                    TaskQuickRow(task: task)
+                                ForEach(todayChores.prefix(5)) { chore in
+                                    TaskQuickRow(chore: chore)
                                 }
                             }
                             .padding(.horizontal)
@@ -167,50 +118,37 @@ struct HomeTab: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingSettings = true
-                    } label: {
+                    Button { showingSettings = true } label: {
                         Image(systemName: "gearshape")
                             .font(.body)
                     }
                 }
             }
             .sheet(isPresented: $showingAddGrocery) {
-                QuickAddGrocerySheet(space: space)
+                QuickAddGrocerySheet()
             }
             .sheet(isPresented: $showingAddChore) {
-                AddChoreSheet(space: space)
+                AddChoreSheet()
             }
             .sheet(isPresented: $showingAddReminder) {
-                AddReminderSheet(space: space)
+                AddReminderSheet()
             }
             .sheet(isPresented: $showingAddProject) {
-                AddProjectSheet(space: space)
+                AddProjectSheet()
             }
             .sheet(isPresented: $showingSettings) {
-                SettingsView(space: space)
+                SettingsView()
             }
             .sheet(isPresented: $showingOverdue) {
-                OverdueTasksSheet(space: space)
+                OverdueTasksSheet()
             }
             .sheet(isPresented: $showingDueToday) {
-                DueTodayTasksSheet(space: space)
+                DueTodayTasksSheet()
             }
             .sheet(isPresented: $showingToBuy) {
-                ToBuySheet(space: space)
+                ToBuySheet()
             }
         }
-    }
-
-    var todayTasks: [Chore] {
-        space.choresArray
-            .filter { ($0.isOverdue || $0.isDueToday) && !$0.isPaused }
-            .sorted { task1, task2 in
-                if task1.isOverdue != task2.isOverdue {
-                    return task1.isOverdue
-                }
-                return (task1.nextDueAt ?? Date()) < (task2.nextDueAt ?? Date())
-            }
     }
 }
 
@@ -253,7 +191,6 @@ struct SmallActionButton: View {
                 Image(systemName: icon)
                     .font(.system(size: 22))
                     .foregroundStyle(color)
-
                 Text(title)
                     .font(.caption2)
                     .fontWeight(.medium)
@@ -270,16 +207,13 @@ struct SmallActionButton: View {
 
 // MARK: - Task Quick Row
 struct TaskQuickRow: View {
-    @ObservedObject var task: Chore
-    @Environment(\.managedObjectContext) private var viewContext
+    let chore: ChoreModel
+    @EnvironmentObject var spaceVM: SpaceViewModel
 
     var body: some View {
         HStack(spacing: 12) {
             Button {
-                withAnimation {
-                    task.markDone()
-                    try? viewContext.save()
-                }
+                Task { await spaceVM.markChoreDone(chore, completedBy: nil) }
             } label: {
                 Image(systemName: "circle")
                     .font(.title2)
@@ -288,16 +222,16 @@ struct TaskQuickRow: View {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(task.title ?? "")
+                Text(chore.title)
                     .font(.subheadline)
-                Text(task.dueDescription)
+                Text(chore.dueDescription)
                     .font(.caption)
-                    .foregroundStyle(task.isOverdue ? .red : .secondary)
+                    .foregroundStyle(chore.isOverdue ? .red : .secondary)
             }
 
             Spacer()
 
-            Text(task.frequencyEnum.rawValue)
+            Text(chore.frequencyEnum.rawValue)
                 .font(.caption2)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -313,61 +247,47 @@ struct TaskQuickRow: View {
 
 // MARK: - Quick Add Grocery Sheet
 struct QuickAddGrocerySheet: View {
-    @ObservedObject var space: Space
-    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var spaceVM: SpaceViewModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var itemName = ""
-    @State private var selectedList: GroceryList?
+    @State private var selectedList: GroceryListModel?
     @State private var newListName = ""
     @State private var showingCreateList = false
     @State private var addedItems: [String] = []
     @FocusState private var isItemFieldFocused: Bool
 
-    var groceryLists: [GroceryList] {
-        space.groceryListsArray
-    }
-
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 Form {
-                    // List selection
                     Section("Add to List") {
-                        if groceryLists.isEmpty && !showingCreateList {
+                        if spaceVM.groceryLists.isEmpty && !showingCreateList {
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("No grocery lists yet")
                                     .foregroundStyle(.secondary)
-
-                                Button {
-                                    showingCreateList = true
-                                } label: {
+                                Button { showingCreateList = true } label: {
                                     Label("Create a List", systemImage: "plus.circle.fill")
                                 }
                             }
                         } else {
-                            ForEach(groceryLists) { list in
+                            ForEach(spaceVM.groceryLists) { list in
                                 Button {
                                     selectedList = list
-                                    addedItems = [] // Clear when switching lists
+                                    addedItems = []
                                 } label: {
                                     HStack {
                                         Image(systemName: selectedList?.id == list.id ? "checkmark.circle.fill" : "circle")
                                             .foregroundStyle(selectedList?.id == list.id ? .green : .gray)
-                                        Text(list.name ?? "Untitled")
+                                        Text(list.name)
                                             .foregroundStyle(.primary)
                                         Spacer()
-                                        Text("\(list.itemsArray.count) items")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
                                     }
                                 }
                             }
 
                             if !showingCreateList {
-                                Button {
-                                    showingCreateList = true
-                                } label: {
+                                Button { showingCreateList = true } label: {
                                     Label("New List", systemImage: "plus")
                                         .foregroundStyle(.blue)
                                 }
@@ -377,13 +297,8 @@ struct QuickAddGrocerySheet: View {
                         if showingCreateList {
                             HStack {
                                 TextField("List name", text: $newListName)
-                                    .onSubmit {
-                                        createList()
-                                    }
-
-                                Button {
-                                    createList()
-                                } label: {
+                                    .onSubmit { createList() }
+                                Button { createList() } label: {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(.green)
                                 }
@@ -392,20 +307,14 @@ struct QuickAddGrocerySheet: View {
                         }
                     }
 
-                    // Add item input
                     if selectedList != nil {
                         Section {
                             HStack {
                                 TextField("Item name", text: $itemName)
                                     .focused($isItemFieldFocused)
-                                    .onSubmit {
-                                        addItem()
-                                    }
-
+                                    .onSubmit { addItem() }
                                 if !itemName.isEmpty {
-                                    Button {
-                                        addItem()
-                                    } label: {
+                                    Button { addItem() } label: {
                                         Image(systemName: "plus.circle.fill")
                                             .font(.title2)
                                             .foregroundStyle(.green)
@@ -419,9 +328,8 @@ struct QuickAddGrocerySheet: View {
                         }
                     }
 
-                    // Show added items
                     if !addedItems.isEmpty {
-                        Section("Just Added ✓") {
+                        Section("Just Added") {
                             ForEach(addedItems, id: \.self) { item in
                                 HStack {
                                     Image(systemName: "checkmark.circle.fill")
@@ -441,7 +349,7 @@ struct QuickAddGrocerySheet: View {
                 }
             }
             .onAppear {
-                selectedList = groceryLists.first
+                selectedList = spaceVM.groceryLists.first
                 isItemFieldFocused = true
             }
         }
@@ -450,43 +358,30 @@ struct QuickAddGrocerySheet: View {
     private func createList() {
         let trimmedName = newListName.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return }
-
-        let list = GroceryList(context: viewContext)
-        list.id = UUID()
-        list.name = trimmedName
-        list.createdAt = Date()
-        list.space = space
-
-        try? viewContext.save()
-
-        selectedList = list
-        newListName = ""
-        showingCreateList = false
-        addedItems = []
-        isItemFieldFocused = true
+        Task {
+            await spaceVM.addGroceryList(name: trimmedName)
+            newListName = ""
+            showingCreateList = false
+            // Select the newly created list after a brief delay for listener to update
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            selectedList = spaceVM.groceryLists.last
+            addedItems = []
+            isItemFieldFocused = true
+        }
     }
 
     private func addItem() {
-        guard let list = selectedList else { return }
+        guard let list = selectedList, let spaceId = spaceVM.spaceId, let listId = list.id else { return }
         let trimmedName = itemName.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return }
 
-        let item = GroceryItem(context: viewContext)
-        item.id = UUID()
-        item.title = trimmedName
-        item.isChecked = false
-        item.createdAt = Date()
-        item.updatedAt = Date()
-        item.groceryList = list
-
-        try? viewContext.save()
-
-        // Show the item was added
-        withAnimation {
-            addedItems.insert(trimmedName, at: 0)
+        let vm = GroceryViewModel(spaceId: spaceId, listId: listId)
+        Task {
+            await vm.addItem(title: trimmedName)
+            vm.stopListening()
         }
 
-        // Clear and refocus for next item
+        withAnimation { addedItems.insert(trimmedName, at: 0) }
         itemName = ""
         isItemFieldFocused = true
     }
@@ -494,12 +389,11 @@ struct QuickAddGrocerySheet: View {
 
 // MARK: - Overdue Tasks Sheet
 struct OverdueTasksSheet: View {
-    @ObservedObject var space: Space
-    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var spaceVM: SpaceViewModel
     @Environment(\.dismiss) private var dismiss
 
-    var overdueTasks: [Chore] {
-        space.choresArray
+    var overdueTasks: [ChoreModel] {
+        spaceVM.chores
             .filter { $0.isOverdue && !$0.isPaused }
             .sorted { ($0.nextDueAt ?? Date()) < ($1.nextDueAt ?? Date()) }
     }
@@ -507,8 +401,8 @@ struct OverdueTasksSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(overdueTasks) { task in
-                    TaskRowForSheet(task: task, isOverdue: true)
+                ForEach(overdueTasks) { chore in
+                    TaskRowForSheet(chore: chore, isOverdue: true)
                 }
             }
             .navigationTitle("Overdue")
@@ -524,12 +418,11 @@ struct OverdueTasksSheet: View {
 
 // MARK: - Due Today Tasks Sheet
 struct DueTodayTasksSheet: View {
-    @ObservedObject var space: Space
-    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var spaceVM: SpaceViewModel
     @Environment(\.dismiss) private var dismiss
 
-    var dueTodayTasks: [Chore] {
-        space.choresArray
+    var dueTodayTasks: [ChoreModel] {
+        spaceVM.chores
             .filter { $0.isDueToday && !$0.isPaused }
             .sorted { ($0.nextDueAt ?? Date()) < ($1.nextDueAt ?? Date()) }
     }
@@ -537,8 +430,8 @@ struct DueTodayTasksSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(dueTodayTasks) { task in
-                    TaskRowForSheet(task: task, isOverdue: false)
+                ForEach(dueTodayTasks) { chore in
+                    TaskRowForSheet(chore: chore, isOverdue: false)
                 }
             }
             .navigationTitle("Due Today")
@@ -554,17 +447,14 @@ struct DueTodayTasksSheet: View {
 
 // MARK: - Task Row for Sheets
 struct TaskRowForSheet: View {
-    @ObservedObject var task: Chore
-    @Environment(\.managedObjectContext) private var viewContext
+    let chore: ChoreModel
+    @EnvironmentObject var spaceVM: SpaceViewModel
     let isOverdue: Bool
 
     var body: some View {
         HStack(spacing: 12) {
             Button {
-                withAnimation {
-                    task.markDone()
-                    try? viewContext.save()
-                }
+                Task { await spaceVM.markChoreDone(chore, completedBy: nil) }
             } label: {
                 Image(systemName: "circle")
                     .font(.title2)
@@ -573,16 +463,16 @@ struct TaskRowForSheet: View {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(task.title ?? "")
+                Text(chore.title)
                     .font(.subheadline)
-                Text(task.dueDescription)
+                Text(chore.dueDescription)
                     .font(.caption)
                     .foregroundStyle(isOverdue ? .red : .secondary)
             }
 
             Spacer()
 
-            Text(task.frequencyEnum.rawValue)
+            Text(chore.frequencyEnum.rawValue)
                 .font(.caption2)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -595,49 +485,20 @@ struct TaskRowForSheet: View {
 
 // MARK: - To Buy Sheet
 struct ToBuySheet: View {
-    @ObservedObject var space: Space
-    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var spaceVM: SpaceViewModel
     @Environment(\.dismiss) private var dismiss
-
-    var groceryLists: [GroceryList] {
-        space.groceryListsArray.filter { $0.uncheckedCount > 0 }
-    }
 
     var body: some View {
         NavigationStack {
             List {
-                ForEach(groceryLists) { list in
-                    Section(list.name ?? "Untitled") {
-                        ForEach(list.itemsArray.filter { !$0.isChecked }) { item in
-                            HStack(spacing: 12) {
-                                Button {
-                                    withAnimation {
-                                        item.isChecked = true
-                                        item.updatedAt = Date()
-                                        try? viewContext.save()
-                                    }
-                                } label: {
-                                    Image(systemName: "circle")
-                                        .font(.title2)
-                                        .foregroundStyle(.blue)
-                                }
-                                .buttonStyle(.plain)
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.title ?? "")
-                                        .font(.subheadline)
-                                    if let quantity = item.quantity, !quantity.isEmpty {
-                                        Text(quantity)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-                        }
+                ForEach(spaceVM.groceryLists) { list in
+                    Section(list.name) {
+                        Text("Open Groceries tab to view items")
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
-            .navigationTitle("To Buy")
+            .navigationTitle("Grocery Lists")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

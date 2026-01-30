@@ -1,6 +1,5 @@
 import Foundation
 import UserNotifications
-import CoreData
 
 class NotificationService: ObservableObject {
     static let shared = NotificationService()
@@ -44,23 +43,19 @@ class NotificationService: ObservableObject {
         }
     }
 
-    // MARK: - Chore/Task Notifications
+    // MARK: - Chore Notifications
 
-    func scheduleChoreNotification(for chore: Chore) {
-        guard let choreId = chore.id?.uuidString,
-              let title = chore.title,
+    func scheduleChoreNotification(for chore: ChoreModel) {
+        guard let choreId = chore.id,
               let dueDate = chore.nextDueAt,
               !chore.isPaused else {
             return
         }
 
-        // Cancel existing notification for this chore
         cancelNotification(for: choreId, prefix: Self.chorePrefix)
 
-        // Don't schedule if already overdue or due date is in the past
         guard dueDate > Date() else { return }
 
-        // Schedule notification for the morning of the due date (9:00 AM)
         var components = Calendar.current.dateComponents([.year, .month, .day], from: dueDate)
         components.hour = 9
         components.minute = 0
@@ -69,7 +64,7 @@ class NotificationService: ObservableObject {
 
         let content = UNMutableNotificationContent()
         content.title = "Task Due Today"
-        content.body = title
+        content.body = chore.title
         content.sound = .default
         content.categoryIdentifier = "TASK_REMINDER"
         content.userInfo = ["choreId": choreId]
@@ -89,21 +84,17 @@ class NotificationService: ObservableObject {
 
     // MARK: - Project Task Notifications
 
-    func scheduleTaskNotification(for task: ProjectTask) {
-        guard let taskId = task.id?.uuidString,
-              let title = task.title,
+    func scheduleTaskNotification(for task: ProjectTaskModel, projectName: String? = nil) {
+        guard let taskId = task.id,
               let dueDate = task.dueDate,
-              !task.isCompleted else {
+              task.completedAt == nil else {
             return
         }
 
-        // Cancel existing notification for this task
         cancelNotification(for: taskId, prefix: Self.taskPrefix)
 
-        // Don't schedule if already overdue
         guard dueDate > Date() else { return }
 
-        // Schedule notification for the morning of the due date (9:00 AM)
         var components = Calendar.current.dateComponents([.year, .month, .day], from: dueDate)
         components.hour = 9
         components.minute = 0
@@ -112,8 +103,8 @@ class NotificationService: ObservableObject {
 
         let content = UNMutableNotificationContent()
         content.title = "Project Task Due Today"
-        content.body = title
-        if let projectName = task.project?.name {
+        content.body = task.title
+        if let projectName = projectName {
             content.subtitle = projectName
         }
         content.sound = .default
@@ -135,21 +126,17 @@ class NotificationService: ObservableObject {
 
     // MARK: - Reminder Notifications
 
-    func scheduleReminderNotification(for reminder: Reminder) {
-        guard let reminderId = reminder.id?.uuidString,
-              let title = reminder.title,
+    func scheduleReminderNotification(for reminder: ReminderModel) {
+        guard let reminderId = reminder.id,
               let dueDate = reminder.nextDueAt,
               !reminder.isPaused else {
             return
         }
 
-        // Cancel existing notification for this reminder
         cancelNotification(for: reminderId, prefix: Self.reminderPrefix)
 
-        // Don't schedule if already overdue
         guard dueDate > Date() else { return }
 
-        // Schedule notification for the morning of the due date (9:00 AM)
         var components = Calendar.current.dateComponents([.year, .month, .day], from: dueDate)
         components.hour = 9
         components.minute = 0
@@ -158,8 +145,7 @@ class NotificationService: ObservableObject {
 
         let content = UNMutableNotificationContent()
         content.title = "Reminder Due Today"
-        content.body = title
-        content.subtitle = reminder.recurrenceDescription
+        content.body = reminder.title
         content.sound = .default
         content.categoryIdentifier = "REMINDER"
         content.userInfo = ["reminderId": reminderId]
@@ -183,55 +169,36 @@ class NotificationService: ObservableObject {
         center.removePendingNotificationRequests(withIdentifiers: ["\(prefix)\(id)"])
     }
 
-    func cancelChoreNotification(for chore: Chore) {
-        guard let choreId = chore.id?.uuidString else { return }
+    func cancelChoreNotification(for chore: ChoreModel) {
+        guard let choreId = chore.id else { return }
         cancelNotification(for: choreId, prefix: Self.chorePrefix)
     }
 
-    func cancelTaskNotification(for task: ProjectTask) {
-        guard let taskId = task.id?.uuidString else { return }
+    func cancelTaskNotification(for task: ProjectTaskModel) {
+        guard let taskId = task.id else { return }
         cancelNotification(for: taskId, prefix: Self.taskPrefix)
     }
 
-    func cancelReminderNotification(for reminder: Reminder) {
-        guard let reminderId = reminder.id?.uuidString else { return }
+    func cancelReminderNotification(for reminder: ReminderModel) {
+        guard let reminderId = reminder.id else { return }
         cancelNotification(for: reminderId, prefix: Self.reminderPrefix)
     }
 
     // MARK: - Reschedule All
 
-    func rescheduleAllNotifications(context: NSManagedObjectContext) {
-        // Cancel all existing notifications
+    func rescheduleAllNotifications(chores: [ChoreModel], tasks: [ProjectTaskModel], reminders: [ReminderModel]) {
         center.removeAllPendingNotificationRequests()
 
-        // Reschedule chores (tasks)
-        let choreRequest: NSFetchRequest<Chore> = Chore.fetchRequest()
-        choreRequest.predicate = NSPredicate(format: "isPaused == NO")
-
-        if let chores = try? context.fetch(choreRequest) {
-            for chore in chores {
-                scheduleChoreNotification(for: chore)
-            }
+        for chore in chores where !chore.isPaused {
+            scheduleChoreNotification(for: chore)
         }
 
-        // Reschedule project tasks with due dates
-        let taskRequest: NSFetchRequest<ProjectTask> = ProjectTask.fetchRequest()
-        taskRequest.predicate = NSPredicate(format: "completedAt == nil AND dueDate != nil")
-
-        if let tasks = try? context.fetch(taskRequest) {
-            for task in tasks {
-                scheduleTaskNotification(for: task)
-            }
+        for task in tasks where task.completedAt == nil && task.dueDate != nil {
+            scheduleTaskNotification(for: task)
         }
 
-        // Reschedule reminders
-        let reminderRequest: NSFetchRequest<Reminder> = Reminder.fetchRequest()
-        reminderRequest.predicate = NSPredicate(format: "isPaused == NO")
-
-        if let reminders = try? context.fetch(reminderRequest) {
-            for reminder in reminders {
-                scheduleReminderNotification(for: reminder)
-            }
+        for reminder in reminders where !reminder.isPaused {
+            scheduleReminderNotification(for: reminder)
         }
     }
 }

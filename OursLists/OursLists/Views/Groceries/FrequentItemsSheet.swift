@@ -1,45 +1,19 @@
 import SwiftUI
-import CoreData
 
 struct FrequentItemsSheet: View {
-    @ObservedObject var groceryList: GroceryList
-    @Environment(\.managedObjectContext) private var viewContext
+    @ObservedObject var groceryVM: GroceryViewModel
+    @EnvironmentObject var spaceVM: SpaceViewModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedTab = 0
-    @State private var selectedItems: Set<UUID> = []
+    @State private var selectedItems: Set<String> = []
 
-    @FetchRequest private var frequentItems: FetchedResults<PurchaseHistory>
-    @FetchRequest private var recentItems: FetchedResults<PurchaseHistory>
-
-    init(groceryList: GroceryList) {
-        self.groceryList = groceryList
-
-        let space = groceryList.space
-
-        // Frequent items fetch request
-        let frequentRequest: NSFetchRequest<PurchaseHistory> = PurchaseHistory.fetchRequest()
-        frequentRequest.predicate = NSPredicate(format: "space == %@", space ?? NSNull())
-        frequentRequest.sortDescriptors = [
-            NSSortDescriptor(keyPath: \PurchaseHistory.purchaseCount, ascending: false)
-        ]
-        frequentRequest.fetchLimit = 30
-        _frequentItems = FetchRequest(fetchRequest: frequentRequest)
-
-        // Recent items fetch request
-        let recentRequest: NSFetchRequest<PurchaseHistory> = PurchaseHistory.fetchRequest()
-        recentRequest.predicate = NSPredicate(format: "space == %@", space ?? NSNull())
-        recentRequest.sortDescriptors = [
-            NSSortDescriptor(keyPath: \PurchaseHistory.lastPurchasedAt, ascending: false)
-        ]
-        recentRequest.fetchLimit = 30
-        _recentItems = FetchRequest(fetchRequest: recentRequest)
-    }
+    var frequentItems: [PurchaseHistoryModel] { spaceVM.frequentlyBoughtItems }
+    var recentItems: [PurchaseHistoryModel] { spaceVM.recentlyBoughtItems }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Tab selector
                 Picker("View", selection: $selectedTab) {
                     Text("Frequent").tag(0)
                     Text("Recent").tag(1)
@@ -47,8 +21,7 @@ struct FrequentItemsSheet: View {
                 .pickerStyle(.segmented)
                 .padding()
 
-                // Items list
-                let items = selectedTab == 0 ? Array(frequentItems) : Array(recentItems)
+                let items = selectedTab == 0 ? frequentItems : recentItems
 
                 if items.isEmpty {
                     ContentUnavailableView {
@@ -61,7 +34,7 @@ struct FrequentItemsSheet: View {
                         ForEach(items) { item in
                             FrequentItemRow(
                                 item: item,
-                                isSelected: selectedItems.contains(item.id ?? UUID()),
+                                isSelected: selectedItems.contains(item.id ?? ""),
                                 onToggle: { toggleSelection(item) }
                             )
                         }
@@ -84,7 +57,7 @@ struct FrequentItemsSheet: View {
         }
     }
 
-    private func toggleSelection(_ item: PurchaseHistory) {
+    private func toggleSelection(_ item: PurchaseHistoryModel) {
         guard let id = item.id else { return }
         if selectedItems.contains(id) {
             selectedItems.remove(id)
@@ -94,49 +67,35 @@ struct FrequentItemsSheet: View {
     }
 
     private func addSelectedItems() {
-        let allItems = Array(frequentItems) + Array(recentItems)
-
-        for item in allItems where selectedItems.contains(item.id ?? UUID()) {
-            let groceryItem = GroceryItem(context: viewContext)
-            groceryItem.id = UUID()
-            groceryItem.title = item.itemTitle
-            groceryItem.quantity = item.quantity
-            groceryItem.category = item.category
-            groceryItem.isChecked = false
-            groceryItem.createdAt = Date()
-            groceryItem.updatedAt = Date()
-            groceryItem.groceryList = groceryList
+        let allItems = frequentItems + recentItems
+        let selected = allItems.filter { selectedItems.contains($0.id ?? "") }
+        Task {
+            await groceryVM.addFrequentItems(selected)
+            dismiss()
         }
-
-        try? viewContext.save()
-        dismiss()
     }
 }
 
 // MARK: - Frequent Item Row
 struct FrequentItemRow: View {
-    let item: PurchaseHistory
+    let item: PurchaseHistoryModel
     let isSelected: Bool
     let onToggle: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            // Selection checkbox
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 .font(.title2)
                 .foregroundStyle(isSelected ? .blue : .gray)
 
-            // Content
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.itemTitle ?? "")
-
+                Text(item.itemTitle)
                 HStack(spacing: 8) {
                     if let quantity = item.quantity, !quantity.isEmpty {
                         Text(quantity)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-
                     Text("\(item.purchaseCount)x purchased")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -145,7 +104,6 @@ struct FrequentItemRow: View {
 
             Spacer()
 
-            // Category badge
             if let category = item.category {
                 Text(category)
                     .font(.caption2)
@@ -157,8 +115,6 @@ struct FrequentItemRow: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture {
-            onToggle()
-        }
+        .onTapGesture { onToggle() }
     }
 }

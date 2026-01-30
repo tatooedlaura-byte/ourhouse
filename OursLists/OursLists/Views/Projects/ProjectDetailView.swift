@@ -1,10 +1,13 @@
 import SwiftUI
-import CoreData
+import FirebaseFirestore
 
 struct ProjectDetailView: View {
-    @ObservedObject var project: Project
-    @Environment(\.managedObjectContext) private var viewContext
-    @EnvironmentObject var persistenceController: PersistenceController
+    let project: ProjectModel
+    let spaceId: String
+    let projectId: String
+    @EnvironmentObject var spaceVM: SpaceViewModel
+
+    @StateObject private var taskVM: ProjectTaskViewModel
 
     @State private var newTaskTitle = ""
     @State private var showingAddTask = false
@@ -12,21 +15,22 @@ struct ProjectDetailView: View {
     @State private var showCompleted = false
     @FocusState private var isAddFieldFocused: Bool
 
+    init(project: ProjectModel, spaceId: String, projectId: String) {
+        self.project = project
+        self.spaceId = spaceId
+        self.projectId = projectId
+        _taskVM = StateObject(wrappedValue: ProjectTaskViewModel(spaceId: spaceId, projectId: projectId))
+    }
+
     var body: some View {
         List {
-            // Quick add section
             Section {
                 HStack {
                     TextField("Add task...", text: $newTaskTitle)
                         .focused($isAddFieldFocused)
-                        .onSubmit {
-                            quickAddTask()
-                        }
-
+                        .onSubmit { quickAddTask() }
                     if !newTaskTitle.isEmpty {
-                        Button {
-                            quickAddTask()
-                        } label: {
+                        Button { quickAddTask() } label: {
                             Image(systemName: "plus.circle.fill")
                                 .foregroundStyle(project.colorValue)
                         }
@@ -34,53 +38,48 @@ struct ProjectDetailView: View {
                 }
             }
 
-            // Incomplete tasks
-            if !project.incompleteTasks.isEmpty {
+            if !taskVM.incompleteTasks.isEmpty {
                 Section("To Do") {
-                    ForEach(project.incompleteTasks) { task in
-                        TaskRow(task: task, accentColor: project.colorValue)
+                    ForEach(taskVM.incompleteTasks) { task in
+                        ProjectTaskRow(task: task, accentColor: project.colorValue, taskVM: taskVM)
                     }
                     .onDelete { offsets in
-                        deleteTasks(offsets, from: project.incompleteTasks)
+                        for i in offsets {
+                            Task { await taskVM.deleteTask(taskVM.incompleteTasks[i]) }
+                        }
                     }
                 }
             }
 
-            // Completed tasks (collapsible)
-            if !project.completedTasks.isEmpty {
+            if !taskVM.completedTasks.isEmpty {
                 Section {
-                    DisclosureGroup("Completed (\(project.completedTasks.count))", isExpanded: $showCompleted) {
-                        ForEach(project.completedTasks) { task in
-                            TaskRow(task: task, accentColor: project.colorValue)
+                    DisclosureGroup("Completed (\(taskVM.completedTasks.count))", isExpanded: $showCompleted) {
+                        ForEach(taskVM.completedTasks) { task in
+                            ProjectTaskRow(task: task, accentColor: project.colorValue, taskVM: taskVM)
                         }
                         .onDelete { offsets in
-                            deleteTasks(offsets, from: project.completedTasks)
+                            for i in offsets {
+                                Task { await taskVM.deleteTask(taskVM.completedTasks[i]) }
+                            }
                         }
                     }
                 }
             }
 
-            // Project info
             Section {
                 HStack {
                     Text("Created")
                     Spacer()
-                    Text(project.createdAt ?? Date(), style: .date)
-                        .foregroundStyle(.secondary)
+                    Text(project.createdAt, style: .date).foregroundStyle(.secondary)
                 }
-
                 HStack {
                     Text("Progress")
                     Spacer()
-                    Text("\(project.completedTasks.count)/\(project.tasksArray.count) tasks")
-                        .foregroundStyle(.secondary)
+                    Text("\(taskVM.completedTasks.count)/\(taskVM.tasks.count) tasks").foregroundStyle(.secondary)
                 }
             }
         }
-        .refreshable {
-            await persistenceController.performManualSync()
-        }
-        .navigationTitle(project.name ?? "Project")
+        .navigationTitle(project.name)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -89,18 +88,16 @@ struct ProjectDetailView: View {
                     } label: {
                         Label("Add Task with Details", systemImage: "plus.circle")
                     }
-
                     Button {
                         showingEditProject = true
                     } label: {
                         Label("Edit Project", systemImage: "pencil")
                     }
-
                     Divider()
-
                     Button {
-                        project.isArchived.toggle()
-                        try? viewContext.save()
+                        var updated = project
+                        updated.isArchived.toggle()
+                        Task { await spaceVM.updateProject(updated) }
                     } label: {
                         Label(project.isArchived ? "Unarchive" : "Archive", systemImage: project.isArchived ? "tray.and.arrow.up" : "archivebox")
                     }
@@ -110,7 +107,7 @@ struct ProjectDetailView: View {
             }
         }
         .sheet(isPresented: $showingAddTask) {
-            AddTaskSheet(project: project)
+            AddTaskSheet(taskVM: taskVM)
         }
         .sheet(isPresented: $showingEditProject) {
             EditProjectSheet(project: project)
@@ -118,42 +115,108 @@ struct ProjectDetailView: View {
     }
 
     private func quickAddTask() {
-        guard !newTaskTitle.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-
-        let task = ProjectTask(context: viewContext)
-        task.id = UUID()
-        task.title = newTaskTitle.trimmingCharacters(in: .whitespaces)
-        task.createdAt = Date()
-        task.priority = ProjectTask.Priority.medium.rawValue
-        task.project = project
-
-        try? viewContext.save()
+        let trimmed = newTaskTitle.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        let task = ProjectTaskModel(title: trimmed)
+        Task { await taskVM.addTask(task) }
         newTaskTitle = ""
         isAddFieldFocused = true
     }
+}
 
-    private func deleteTasks(_ offsets: IndexSet, from tasks: [ProjectTask]) {
-        withAnimation {
-            offsets.map { tasks[$0] }.forEach(viewContext.delete)
-            try? viewContext.save()
+// MARK: - Project Task ViewModel
+@MainActor
+class ProjectTaskViewModel: ObservableObject {
+    @Published var tasks: [ProjectTaskModel] = []
+
+    private let firestore = FirestoreService.shared
+    private var listener: ListenerRegistration?
+    let spaceId: String
+    let projectId: String
+
+    var incompleteTasks: [ProjectTaskModel] {
+        tasks.filter { $0.completedAt == nil }
+            .sorted { t1, t2 in
+                if t1.priority != t2.priority { return t1.priority > t2.priority }
+                return t1.createdAt < t2.createdAt
+            }
+    }
+
+    var completedTasks: [ProjectTaskModel] {
+        tasks.filter { $0.completedAt != nil }
+    }
+
+    var progress: Double {
+        guard !tasks.isEmpty else { return 0 }
+        return Double(completedTasks.count) / Double(tasks.count)
+    }
+
+    init(spaceId: String, projectId: String) {
+        self.spaceId = spaceId
+        self.projectId = projectId
+        startListening()
+    }
+
+    func startListening() {
+        let collection = firestore.projectTasksCollection(spaceId: spaceId, projectId: projectId)
+        listener = collection.addSnapshotListener { [weak self] snapshot, _ in
+            guard let documents = snapshot?.documents else { return }
+            let tasks = documents.compactMap { try? $0.data(as: ProjectTaskModel.self) }
+            Task { @MainActor in self?.tasks = tasks }
         }
+    }
+
+    func addTask(_ task: ProjectTaskModel) async {
+        let collection = firestore.projectTasksCollection(spaceId: spaceId, projectId: projectId)
+        do {
+            _ = try await firestore.addDocument(to: collection, data: task)
+        } catch {
+            print("Error adding task: \(error)")
+        }
+    }
+
+    func updateTask(_ task: ProjectTaskModel) async {
+        guard let taskId = task.id else { return }
+        let collection = firestore.projectTasksCollection(spaceId: spaceId, projectId: projectId)
+        do {
+            try await firestore.updateDocument(in: collection, id: taskId, data: task)
+        } catch {
+            print("Error updating task: \(error)")
+        }
+    }
+
+    func toggleCompletion(_ task: ProjectTaskModel) async {
+        var updated = task
+        updated.completedAt = task.completedAt == nil ? Date() : nil
+        await updateTask(updated)
+    }
+
+    func deleteTask(_ task: ProjectTaskModel) async {
+        guard let taskId = task.id else { return }
+        let collection = firestore.projectTasksCollection(spaceId: spaceId, projectId: projectId)
+        do {
+            try await firestore.deleteDocument(in: collection, id: taskId)
+        } catch {
+            print("Error deleting task: \(error)")
+        }
+    }
+
+    deinit {
+        listener?.remove()
     }
 }
 
-// MARK: - Task Row
-struct TaskRow: View {
-    @ObservedObject var task: ProjectTask
-    @Environment(\.managedObjectContext) private var viewContext
-
+// MARK: - Project Task Row
+struct ProjectTaskRow: View {
+    let task: ProjectTaskModel
     var accentColor: Color
-
+    @ObservedObject var taskVM: ProjectTaskViewModel
     @State private var showingEdit = false
 
     var body: some View {
         HStack(spacing: 12) {
-            // Checkbox
             Button {
-                toggleTask()
+                Task { await taskVM.toggleCompletion(task) }
             } label: {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.title2)
@@ -161,13 +224,11 @@ struct TaskRow: View {
             }
             .buttonStyle(.plain)
 
-            // Content
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(task.title ?? "")
+                    Text(task.title)
                         .strikethrough(task.isCompleted)
                         .foregroundStyle(task.isCompleted ? .secondary : .primary)
-
                     if task.priorityEnum == .high {
                         Image(systemName: "exclamationmark.circle.fill")
                             .font(.caption)
@@ -182,7 +243,6 @@ struct TaskRow: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
-
                     if let dueDate = task.dueDate {
                         HStack(spacing: 2) {
                             Image(systemName: "calendar")
@@ -191,7 +251,6 @@ struct TaskRow: View {
                         .font(.caption)
                         .foregroundStyle(task.isOverdue ? .red : .secondary)
                     }
-
                     if task.assignmentEnum != .unassigned {
                         Text("• \(task.assignmentEnum.rawValue)")
                             .font(.caption)
@@ -199,140 +258,107 @@ struct TaskRow: View {
                     }
                 }
             }
-
             Spacer()
         }
         .contentShape(Rectangle())
-        .onTapGesture {
-            showingEdit = true
-        }
+        .onTapGesture { showingEdit = true }
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
-                viewContext.delete(task)
-                try? viewContext.save()
+                Task { await taskVM.deleteTask(task) }
             } label: {
                 Label("Delete", systemImage: "trash")
             }
         }
         .swipeActions(edge: .leading) {
             Button {
-                toggleTask()
+                Task { await taskVM.toggleCompletion(task) }
             } label: {
                 Label(task.isCompleted ? "Undo" : "Complete", systemImage: task.isCompleted ? "arrow.uturn.backward" : "checkmark")
             }
             .tint(task.isCompleted ? .orange : .green)
         }
         .sheet(isPresented: $showingEdit) {
-            EditTaskSheet(task: task)
-        }
-    }
-
-    private func toggleTask() {
-        withAnimation {
-            task.toggleCompletion()
-            try? viewContext.save()
+            EditTaskSheet(task: task, taskVM: taskVM)
         }
     }
 }
 
 // MARK: - Add Task Sheet
 struct AddTaskSheet: View {
-    @ObservedObject var project: Project
-    @Environment(\.managedObjectContext) private var viewContext
+    @ObservedObject var taskVM: ProjectTaskViewModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var title = ""
     @State private var note = ""
-    @State private var priority: ProjectTask.Priority = .medium
-    @State private var assignment: ProjectTask.Assignment = .unassigned
+    @State private var priority: TaskPriority = .medium
+    @State private var assignment: ChoreAssignment = .unassigned
     @State private var hasDueDate = false
     @State private var dueDate = Date()
 
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    TextField("Task Title", text: $title)
-                }
-
+                Section { TextField("Task Title", text: $title) }
                 Section {
                     Picker("Priority", selection: $priority) {
-                        ForEach(ProjectTask.Priority.allCases, id: \.self) { p in
-                            Text(p.label).tag(p)
-                        }
+                        ForEach(TaskPriority.allCases, id: \.self) { p in Text(p.label).tag(p) }
                     }
-
                     Picker("Assigned To", selection: $assignment) {
-                        ForEach(ProjectTask.Assignment.allCases, id: \.self) { a in
-                            Text(a.rawValue).tag(a)
-                        }
+                        ForEach(ChoreAssignment.allCases, id: \.self) { a in Text(a.rawValue).tag(a) }
                     }
                 }
-
                 Section {
                     Toggle("Due Date", isOn: $hasDueDate)
                     if hasDueDate {
                         DatePicker("Date", selection: $dueDate, displayedComponents: .date)
                     }
                 }
-
                 Section {
-                    TextField("Notes (optional)", text: $note, axis: .vertical)
-                        .lineLimit(3)
+                    TextField("Notes (optional)", text: $note, axis: .vertical).lineLimit(3)
                 }
             }
             .navigationTitle("New Task")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { addTask() }
-                        .disabled(title.isEmpty)
+                    Button("Add") {
+                        let task = ProjectTaskModel(
+                            title: title,
+                            note: note.isEmpty ? nil : note,
+                            priority: priority.rawValue,
+                            assignedTo: assignment == .unassigned ? nil : assignment.rawValue,
+                            dueDate: hasDueDate ? dueDate : nil
+                        )
+                        Task {
+                            await taskVM.addTask(task)
+                            dismiss()
+                        }
+                    }
+                    .disabled(title.isEmpty)
                 }
             }
         }
-    }
-
-    private func addTask() {
-        let task = ProjectTask(context: viewContext)
-        task.id = UUID()
-        task.title = title
-        task.note = note.isEmpty ? nil : note
-        task.priorityEnum = priority
-        task.assignmentEnum = assignment
-        task.dueDate = hasDueDate ? dueDate : nil
-        task.createdAt = Date()
-        task.project = project
-
-        try? viewContext.save()
-
-        // Schedule notification if has due date
-        if hasDueDate {
-            NotificationService.shared.scheduleTaskNotification(for: task)
-        }
-
-        dismiss()
     }
 }
 
 // MARK: - Edit Task Sheet
 struct EditTaskSheet: View {
-    @ObservedObject var task: ProjectTask
-    @Environment(\.managedObjectContext) private var viewContext
+    let task: ProjectTaskModel
+    @ObservedObject var taskVM: ProjectTaskViewModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var title: String
     @State private var note: String
-    @State private var priority: ProjectTask.Priority
-    @State private var assignment: ProjectTask.Assignment
+    @State private var priority: TaskPriority
+    @State private var assignment: ChoreAssignment
     @State private var hasDueDate: Bool
     @State private var dueDate: Date
 
-    init(task: ProjectTask) {
+    init(task: ProjectTaskModel, taskVM: ProjectTaskViewModel) {
         self.task = task
-        _title = State(initialValue: task.title ?? "")
+        self.taskVM = taskVM
+        _title = State(initialValue: task.title)
         _note = State(initialValue: task.note ?? "")
         _priority = State(initialValue: task.priorityEnum)
         _assignment = State(initialValue: task.assignmentEnum)
@@ -343,43 +369,28 @@ struct EditTaskSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    TextField("Task Title", text: $title)
-                }
-
+                Section { TextField("Task Title", text: $title) }
                 Section {
                     Picker("Priority", selection: $priority) {
-                        ForEach(ProjectTask.Priority.allCases, id: \.self) { p in
-                            Text(p.label).tag(p)
-                        }
+                        ForEach(TaskPriority.allCases, id: \.self) { p in Text(p.label).tag(p) }
                     }
-
                     Picker("Assigned To", selection: $assignment) {
-                        ForEach(ProjectTask.Assignment.allCases, id: \.self) { a in
-                            Text(a.rawValue).tag(a)
-                        }
+                        ForEach(ChoreAssignment.allCases, id: \.self) { a in Text(a.rawValue).tag(a) }
                     }
                 }
-
                 Section {
                     Toggle("Due Date", isOn: $hasDueDate)
                     if hasDueDate {
                         DatePicker("Date", selection: $dueDate, displayedComponents: .date)
                     }
                 }
-
-                Section {
-                    TextField("Notes", text: $note, axis: .vertical)
-                        .lineLimit(3)
-                }
-
+                Section { TextField("Notes", text: $note, axis: .vertical).lineLimit(3) }
                 if task.completedAt != nil {
                     Section {
                         HStack {
                             Text("Completed")
                             Spacer()
-                            Text(task.completedAt!, style: .date)
-                                .foregroundStyle(.secondary)
+                            Text(task.completedAt!, style: .date).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -387,41 +398,31 @@ struct EditTaskSheet: View {
             .navigationTitle("Edit Task")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { saveTask() }
-                        .disabled(title.isEmpty)
+                    Button("Save") {
+                        var updated = task
+                        updated.title = title
+                        updated.note = note.isEmpty ? nil : note
+                        updated.priority = priority.rawValue
+                        updated.assignedTo = assignment == .unassigned ? nil : assignment.rawValue
+                        updated.dueDate = hasDueDate ? dueDate : nil
+                        Task {
+                            await taskVM.updateTask(updated)
+                            dismiss()
+                        }
+                    }
+                    .disabled(title.isEmpty)
                 }
             }
         }
-    }
-
-    private func saveTask() {
-        task.title = title
-        task.note = note.isEmpty ? nil : note
-        task.priorityEnum = priority
-        task.assignmentEnum = assignment
-        task.dueDate = hasDueDate ? dueDate : nil
-
-        try? viewContext.save()
-
-        // Update notification
-        if hasDueDate && !task.isCompleted {
-            NotificationService.shared.scheduleTaskNotification(for: task)
-        } else {
-            NotificationService.shared.cancelTaskNotification(for: task)
-        }
-
-        dismiss()
     }
 }
 
 // MARK: - Edit Project Sheet
 struct EditProjectSheet: View {
-    @ObservedObject var project: Project
-    @Environment(\.managedObjectContext) private var viewContext
+    let project: ProjectModel
+    @EnvironmentObject var spaceVM: SpaceViewModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String
@@ -429,32 +430,24 @@ struct EditProjectSheet: View {
 
     let colorOptions = ["#007AFF", "#34C759", "#FF9500", "#FF3B30", "#AF52DE", "#5856D6", "#FF2D55", "#00C7BE"]
 
-    init(project: Project) {
+    init(project: ProjectModel) {
         self.project = project
-        _name = State(initialValue: project.name ?? "")
-        _selectedColor = State(initialValue: project.color ?? "#007AFF")
+        _name = State(initialValue: project.name)
+        _selectedColor = State(initialValue: project.color)
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    TextField("Project Name", text: $name)
-                }
-
+                Section { TextField("Project Name", text: $name) }
                 Section("Color") {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 16) {
                         ForEach(colorOptions, id: \.self) { hex in
                             Circle()
                                 .fill(Color(hex: hex) ?? .blue)
                                 .frame(width: 40, height: 40)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.primary, lineWidth: selectedColor == hex ? 3 : 0)
-                                )
-                                .onTapGesture {
-                                    selectedColor = hex
-                                }
+                                .overlay(Circle().stroke(Color.primary, lineWidth: selectedColor == hex ? 3 : 0))
+                                .onTapGesture { selectedColor = hex }
                         }
                     }
                     .padding(.vertical, 8)
@@ -463,37 +456,20 @@ struct EditProjectSheet: View {
             .navigationTitle("Edit Project")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { saveProject() }
-                        .disabled(name.isEmpty)
+                    Button("Save") {
+                        var updated = project
+                        updated.name = name
+                        updated.color = selectedColor
+                        Task {
+                            await spaceVM.updateProject(updated)
+                            dismiss()
+                        }
+                    }
+                    .disabled(name.isEmpty)
                 }
             }
         }
-    }
-
-    private func saveProject() {
-        project.name = name
-        project.color = selectedColor
-
-        try? viewContext.save()
-        dismiss()
-    }
-}
-
-struct ProjectDetailView_Previews: PreviewProvider {
-    static var previews: some View {
-        let context = PersistenceController.preview.container.viewContext
-        let project = Project(context: context)
-        project.id = UUID()
-        project.name = "Bathroom Renovation"
-        project.color = "#007AFF"
-
-        return NavigationStack {
-            ProjectDetailView(project: project)
-        }
-        .environment(\.managedObjectContext, context)
     }
 }

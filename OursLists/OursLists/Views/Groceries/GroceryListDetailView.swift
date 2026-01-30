@@ -1,10 +1,8 @@
 import SwiftUI
-import CoreData
 
 struct GroceryListDetailView: View {
-    @ObservedObject var groceryList: GroceryList
-    @Environment(\.managedObjectContext) private var viewContext
-    @EnvironmentObject var persistenceController: PersistenceController
+    @EnvironmentObject var spaceVM: SpaceViewModel
+    @StateObject private var groceryVM: GroceryViewModel
 
     @State private var newItemTitle = ""
     @State private var showingAddItem = false
@@ -12,42 +10,33 @@ struct GroceryListDetailView: View {
     @State private var sortByCategory = false
     @FocusState private var isAddFieldFocused: Bool
 
-    var items: [GroceryItem] {
+    let listName: String
+
+    init(spaceId: String, listId: String, listName: String) {
+        self.listName = listName
+        _groceryVM = StateObject(wrappedValue: GroceryViewModel(spaceId: spaceId, listId: listId))
+    }
+
+    var uncheckedItems: [GroceryItemModel] {
         if sortByCategory {
-            return groceryList.itemsArray.sorted {
-                let cat0 = $0.category ?? "zzz"
-                let cat1 = $1.category ?? "zzz"
-                if cat0 != cat1 { return cat0 < cat1 }
-                if $0.isChecked != $1.isChecked { return !$0.isChecked }
-                return ($0.title ?? "") < ($1.title ?? "")
+            return groceryVM.items.filter { !$0.isChecked }.sorted {
+                ($0.category ?? "zzz") < ($1.category ?? "zzz")
             }
         }
-        return groceryList.itemsArray
+        return groceryVM.uncheckedItems
     }
 
-    var uncheckedItems: [GroceryItem] {
-        items.filter { !$0.isChecked }
-    }
-
-    var checkedItems: [GroceryItem] {
-        items.filter { $0.isChecked }
-    }
+    var checkedItems: [GroceryItemModel] { groceryVM.checkedItems }
 
     var body: some View {
         List {
-            // Quick add section
             Section {
                 HStack {
                     TextField("Add item...", text: $newItemTitle)
                         .focused($isAddFieldFocused)
-                        .onSubmit {
-                            quickAddItem()
-                        }
-
+                        .onSubmit { quickAddItem() }
                     if !newItemTitle.isEmpty {
-                        Button {
-                            quickAddItem()
-                        } label: {
+                        Button { quickAddItem() } label: {
                             Image(systemName: "plus.circle.fill")
                                 .foregroundStyle(.blue)
                         }
@@ -55,33 +44,37 @@ struct GroceryListDetailView: View {
                 }
             }
 
-            // Unchecked items
             if !uncheckedItems.isEmpty {
                 Section("To Get") {
                     ForEach(uncheckedItems) { item in
-                        GroceryItemRow(item: item)
+                        GroceryItemRow(item: item, groceryVM: groceryVM)
                     }
                     .onDelete { offsets in
-                        deleteItems(offsets, from: uncheckedItems)
+                        for i in offsets {
+                            Task { await groceryVM.deleteItem(uncheckedItems[i]) }
+                        }
                     }
                 }
             }
 
-            // Checked items (collapsible)
             if !checkedItems.isEmpty {
                 Section {
                     ForEach(checkedItems) { item in
-                        GroceryItemRow(item: item)
+                        GroceryItemRow(item: item, groceryVM: groceryVM)
                     }
                     .onDelete { offsets in
-                        deleteItems(offsets, from: checkedItems)
+                        for i in offsets {
+                            Task { await groceryVM.deleteItem(checkedItems[i]) }
+                        }
                     }
                 } header: {
                     HStack {
                         Text("Got It (\(checkedItems.count))")
                         Spacer()
                         Button("Clear All") {
-                            clearCheckedItems()
+                            for item in checkedItems {
+                                Task { await groceryVM.deleteItem(item) }
+                            }
                         }
                         .font(.caption)
                         .foregroundStyle(.red)
@@ -89,10 +82,7 @@ struct GroceryListDetailView: View {
                 }
             }
         }
-        .refreshable {
-            await persistenceController.performManualSync()
-        }
-        .navigationTitle(groceryList.name ?? "Grocery List")
+        .navigationTitle(listName)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -101,18 +91,12 @@ struct GroceryListDetailView: View {
                     } label: {
                         Label("Add Frequent Items", systemImage: "clock.arrow.circlepath")
                     }
-
                     Button {
                         sortByCategory.toggle()
                     } label: {
-                        Label(
-                            sortByCategory ? "Sort by Added" : "Sort by Category",
-                            systemImage: sortByCategory ? "clock" : "folder"
-                        )
+                        Label(sortByCategory ? "Sort by Added" : "Sort by Category", systemImage: sortByCategory ? "clock" : "folder")
                     }
-
                     Divider()
-
                     Button {
                         showingAddItem = true
                     } label: {
@@ -124,56 +108,33 @@ struct GroceryListDetailView: View {
             }
         }
         .sheet(isPresented: $showingAddItem) {
-            AddGroceryItemSheet(groceryList: groceryList)
+            AddGroceryItemSheet(groceryVM: groceryVM)
         }
         .sheet(isPresented: $showingFrequentItems) {
-            FrequentItemsSheet(groceryList: groceryList)
+            FrequentItemsSheet(groceryVM: groceryVM)
         }
     }
 
     private func quickAddItem() {
-        guard !newItemTitle.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-
-        let item = GroceryItem(context: viewContext)
-        item.id = UUID()
-        item.title = newItemTitle.trimmingCharacters(in: .whitespaces)
-        item.isChecked = false
-        item.createdAt = Date()
-        item.updatedAt = Date()
-        item.groceryList = groceryList
-
-        try? viewContext.save()
+        let trimmed = newItemTitle.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        Task { await groceryVM.addItem(title: trimmed) }
         newItemTitle = ""
         isAddFieldFocused = true
-    }
-
-    private func deleteItems(_ offsets: IndexSet, from items: [GroceryItem]) {
-        withAnimation {
-            offsets.map { items[$0] }.forEach(viewContext.delete)
-            try? viewContext.save()
-        }
-    }
-
-    private func clearCheckedItems() {
-        withAnimation {
-            checkedItems.forEach(viewContext.delete)
-            try? viewContext.save()
-        }
     }
 }
 
 // MARK: - Grocery Item Row
 struct GroceryItemRow: View {
-    @ObservedObject var item: GroceryItem
-    @Environment(\.managedObjectContext) private var viewContext
-
+    let item: GroceryItemModel
+    @ObservedObject var groceryVM: GroceryViewModel
+    @EnvironmentObject var spaceVM: SpaceViewModel
     @State private var showingEdit = false
 
     var body: some View {
         HStack(spacing: 12) {
-            // Checkbox
             Button {
-                toggleItem()
+                Task { await groceryVM.toggleCheck(item, spaceVM: spaceVM) }
             } label: {
                 Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
                     .font(.title2)
@@ -181,18 +142,15 @@ struct GroceryItemRow: View {
             }
             .buttonStyle(.plain)
 
-            // Content
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.title ?? "")
+                Text(item.title)
                     .strikethrough(item.isChecked)
                     .foregroundStyle(item.isChecked ? .secondary : .primary)
-
                 if let quantity = item.quantity, !quantity.isEmpty {
                     Text(quantity)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-
                 if let note = item.note, !note.isEmpty {
                     Text(note)
                         .font(.caption)
@@ -203,7 +161,6 @@ struct GroceryItemRow: View {
 
             Spacer()
 
-            // Category badge
             if let category = item.category {
                 Text(category)
                     .font(.caption2)
@@ -215,56 +172,37 @@ struct GroceryItemRow: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture {
-            showingEdit = true
-        }
+        .onTapGesture { showingEdit = true }
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
-                viewContext.delete(item)
-                try? viewContext.save()
+                Task { await groceryVM.deleteItem(item) }
             } label: {
                 Label("Delete", systemImage: "trash")
             }
         }
         .swipeActions(edge: .leading) {
             Button {
-                toggleItem()
+                Task { await groceryVM.toggleCheck(item, spaceVM: spaceVM) }
             } label: {
                 Label(item.isChecked ? "Uncheck" : "Check", systemImage: item.isChecked ? "arrow.uturn.backward" : "checkmark")
             }
             .tint(item.isChecked ? .orange : .green)
         }
         .sheet(isPresented: $showingEdit) {
-            EditGroceryItemSheet(item: item)
-        }
-    }
-
-    private func toggleItem() {
-        withAnimation {
-            let wasChecked = item.isChecked
-            item.isChecked.toggle()
-            item.updatedAt = Date()
-
-            // Record purchase when item is checked (not unchecked)
-            if !wasChecked && item.isChecked {
-                PurchaseHistoryService.shared.recordPurchase(item: item, in: viewContext)
-            }
-
-            try? viewContext.save()
+            EditGroceryItemSheet(item: item, groceryVM: groceryVM)
         }
     }
 }
 
 // MARK: - Add Grocery Item Sheet
 struct AddGroceryItemSheet: View {
-    @ObservedObject var groceryList: GroceryList
-    @Environment(\.managedObjectContext) private var viewContext
+    @ObservedObject var groceryVM: GroceryViewModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var title = ""
     @State private var quantity = ""
     @State private var note = ""
-    @State private var category: GroceryItem.Category?
+    @State private var category: GroceryCategory?
 
     var body: some View {
         NavigationStack {
@@ -273,16 +211,14 @@ struct AddGroceryItemSheet: View {
                     TextField("Item Name", text: $title)
                     TextField("Quantity (optional)", text: $quantity)
                 }
-
                 Section {
                     Picker("Category", selection: $category) {
-                        Text("None").tag(nil as GroceryItem.Category?)
-                        ForEach(GroceryItem.Category.allCases, id: \.self) { cat in
-                            Text(cat.rawValue).tag(cat as GroceryItem.Category?)
+                        Text("None").tag(nil as GroceryCategory?)
+                        ForEach(GroceryCategory.allCases, id: \.self) { cat in
+                            Text(cat.rawValue).tag(cat as GroceryCategory?)
                         }
                     }
                 }
-
                 Section {
                     TextField("Note (optional)", text: $note, axis: .vertical)
                         .lineLimit(3)
@@ -291,51 +227,44 @@ struct AddGroceryItemSheet: View {
             .navigationTitle("Add Item")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { addItem() }
-                        .disabled(title.isEmpty)
+                    Button("Add") {
+                        Task {
+                            await groceryVM.addItem(
+                                title: title,
+                                quantity: quantity.isEmpty ? nil : quantity,
+                                note: note.isEmpty ? nil : note,
+                                category: category?.rawValue
+                            )
+                            dismiss()
+                        }
+                    }
+                    .disabled(title.isEmpty)
                 }
             }
         }
-    }
-
-    private func addItem() {
-        let item = GroceryItem(context: viewContext)
-        item.id = UUID()
-        item.title = title
-        item.quantity = quantity.isEmpty ? nil : quantity
-        item.note = note.isEmpty ? nil : note
-        item.category = category?.rawValue
-        item.isChecked = false
-        item.createdAt = Date()
-        item.updatedAt = Date()
-        item.groceryList = groceryList
-
-        try? viewContext.save()
-        dismiss()
     }
 }
 
 // MARK: - Edit Grocery Item Sheet
 struct EditGroceryItemSheet: View {
-    @ObservedObject var item: GroceryItem
-    @Environment(\.managedObjectContext) private var viewContext
+    let item: GroceryItemModel
+    @ObservedObject var groceryVM: GroceryViewModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var title: String
     @State private var quantity: String
     @State private var note: String
-    @State private var category: GroceryItem.Category?
+    @State private var category: GroceryCategory?
 
-    init(item: GroceryItem) {
+    init(item: GroceryItemModel, groceryVM: GroceryViewModel) {
         self.item = item
-        _title = State(initialValue: item.title ?? "")
+        self.groceryVM = groceryVM
+        _title = State(initialValue: item.title)
         _quantity = State(initialValue: item.quantity ?? "")
         _note = State(initialValue: item.note ?? "")
-        _category = State(initialValue: item.categoryEnum)
+        _category = State(initialValue: GroceryCategory(rawValue: item.category ?? ""))
     }
 
     var body: some View {
@@ -345,16 +274,14 @@ struct EditGroceryItemSheet: View {
                     TextField("Item Name", text: $title)
                     TextField("Quantity", text: $quantity)
                 }
-
                 Section {
                     Picker("Category", selection: $category) {
-                        Text("None").tag(nil as GroceryItem.Category?)
-                        ForEach(GroceryItem.Category.allCases, id: \.self) { cat in
-                            Text(cat.rawValue).tag(cat as GroceryItem.Category?)
+                        Text("None").tag(nil as GroceryCategory?)
+                        ForEach(GroceryCategory.allCases, id: \.self) { cat in
+                            Text(cat.rawValue).tag(cat as GroceryCategory?)
                         }
                     }
                 }
-
                 Section {
                     TextField("Note", text: $note, axis: .vertical)
                         .lineLimit(3)
@@ -363,37 +290,23 @@ struct EditGroceryItemSheet: View {
             .navigationTitle("Edit Item")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { saveItem() }
-                        .disabled(title.isEmpty)
+                    Button("Save") {
+                        var updated = item
+                        updated.title = title
+                        updated.quantity = quantity.isEmpty ? nil : quantity
+                        updated.note = note.isEmpty ? nil : note
+                        updated.category = category?.rawValue
+                        updated.updatedAt = Date()
+                        Task {
+                            await groceryVM.updateItem(updated)
+                            dismiss()
+                        }
+                    }
+                    .disabled(title.isEmpty)
                 }
             }
         }
     }
-
-    private func saveItem() {
-        item.title = title
-        item.quantity = quantity.isEmpty ? nil : quantity
-        item.note = note.isEmpty ? nil : note
-        item.category = category?.rawValue
-        item.updatedAt = Date()
-
-        try? viewContext.save()
-        dismiss()
-    }
-}
-
-#Preview {
-    let context = PersistenceController.preview.container.viewContext
-    let list = GroceryList(context: context)
-    list.id = UUID()
-    list.name = "Weekly Groceries"
-
-    return NavigationStack {
-        GroceryListDetailView(groceryList: list)
-    }
-    .environment(\.managedObjectContext, context)
 }

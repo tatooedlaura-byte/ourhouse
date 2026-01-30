@@ -1,43 +1,65 @@
 import SwiftUI
-import CoreData
 
 struct RootView: View {
+    @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var persistenceController: PersistenceController
-    @EnvironmentObject var sharingService: CloudKitSharingService
+    @StateObject private var spaceVM = SpaceViewModel()
 
-    @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Space.createdAt, ascending: true)],
-        animation: .default
-    )
-    private var spaces: FetchedResults<Space>
+    @State private var pendingSpaces: [SpaceModel] = []
+    @State private var checkedInvites = false
 
     var body: some View {
         Group {
-            if let space = spaces.first {
-                // We have a space, show the main app
-                let _ = print("RootView: Found space '\(space.name ?? "unnamed")', showing MainTabView")
-                MainTabView(space: space)
+            if authService.isLoading {
+                ProgressView("Loading...")
+            } else if !authService.isSignedIn {
+                SignInView()
+            } else if spaceVM.isLoading {
+                ProgressView("Loading household...")
+            } else if spaceVM.space != nil {
+                MainTabView()
+                    .environmentObject(spaceVM)
+            } else if !pendingSpaces.isEmpty {
+                JoinSpaceView(pendingSpaces: pendingSpaces)
+                    .environmentObject(spaceVM)
             } else {
-                // No space yet, show onboarding
-                let _ = print("RootView: No space found, showing OnboardingView")
                 OnboardingView()
+                    .environmentObject(spaceVM)
             }
         }
-        .onAppear {
-            print("RootView: Appeared, spaces count = \(spaces.count)")
+        .onChange(of: authService.isSignedIn) { _, isSignedIn in
+            if isSignedIn {
+                loadData()
+            } else {
+                spaceVM.stopListening()
+                pendingSpaces = []
+                checkedInvites = false
+            }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .didAcceptCloudKitShare)) { _ in
-            // Refresh when a share is accepted
-            persistenceController.container.viewContext.refreshAllObjects()
+        .onChange(of: spaceVM.space?.id) { _, _ in
+            // When space is set (e.g. after joining), clear pending
+            if spaceVM.space != nil {
+                pendingSpaces = []
+            }
+        }
+        .task {
+            if authService.isSignedIn {
+                loadData()
+            }
         }
     }
-}
 
-#Preview {
-    RootView()
-        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
-        .environmentObject(PersistenceController.preview)
-        .environmentObject(CloudKitSharingService.shared)
-        .environmentObject(AppState())
+    private func loadData() {
+        Task {
+            await spaceVM.loadSpace(for: authService.uid)
+            if spaceVM.space == nil && !checkedInvites {
+                checkedInvites = true
+                do {
+                    pendingSpaces = try await HouseholdService.shared.checkPendingInvites(for: authService.email)
+                } catch {
+                    print("Error checking invites: \(error)")
+                }
+            }
+        }
+    }
 }

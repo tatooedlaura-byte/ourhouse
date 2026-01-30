@@ -1,18 +1,16 @@
 import SwiftUI
-import CloudKit
 
 struct SettingsView: View {
-    @ObservedObject var space: Space
-    @Environment(\.managedObjectContext) private var viewContext
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject var sharingService: CloudKitSharingService
+    @EnvironmentObject var spaceVM: SpaceViewModel
+    @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var notificationService: NotificationService
+    @Environment(\.dismiss) private var dismiss
 
     @AppStorage("appearanceMode") private var appearanceMode: AppearanceMode = .system
 
-    @State private var showingShareSheet = false
     @State private var showingEditSpace = false
     @State private var showingDeleteConfirmation = false
+    @State private var showingInvite = false
 
     var body: some View {
         NavigationStack {
@@ -23,78 +21,66 @@ struct SettingsView: View {
                         Image(systemName: "house.fill")
                             .foregroundStyle(.blue)
                             .frame(width: 32)
-
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(space.name ?? "Our Home")
+                            Text(spaceVM.space?.name ?? "Our Home")
                                 .font(.headline)
-                            Text("Created by \(space.ownerName ?? "Me")")
+                            Text("Owner: \(spaceVM.space?.ownerName ?? "Me")")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
                     .padding(.vertical, 4)
 
-                    Button {
-                        showingEditSpace = true
-                    } label: {
+                    Button { showingEditSpace = true } label: {
                         Label("Edit Household Name", systemImage: "pencil")
                     }
                 }
 
-                // Sharing Section
-                Section {
-                    // iCloud Status
+                // Account
+                Section("Account") {
                     HStack {
-                        Image(systemName: sharingService.iCloudAvailable ? "checkmark.icloud.fill" : "xmark.icloud.fill")
-                            .foregroundStyle(sharingService.iCloudAvailable ? .green : .red)
+                        Image(systemName: "person.circle.fill")
+                            .foregroundStyle(.blue)
                             .frame(width: 32)
-
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("iCloud")
+                            Text(authService.displayName)
                                 .font(.headline)
-                            Text(sharingService.iCloudAvailable ? "Connected" : "Not Available")
+                            Text(authService.email)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
 
-                    // Sharing Status
-                    HStack {
-                        Image(systemName: sharingStatusIcon)
-                            .foregroundStyle(sharingStatusColor)
-                            .frame(width: 32)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Sharing")
-                                .font(.headline)
-                            Text(sharingStatusText)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    // Members
+                    if let space = spaceVM.space {
+                        ForEach(space.memberEmails, id: \.self) { email in
+                            HStack {
+                                Image(systemName: "person.fill")
+                                    .foregroundStyle(.green)
+                                    .frame(width: 32)
+                                Text(email)
+                                    .font(.subheadline)
+                                if email == space.memberEmails.first {
+                                    Spacer()
+                                    Text("Owner")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         }
                     }
 
-                    // Share/Manage Button
                     Button {
-                        showingShareSheet = true
+                        showingInvite = true
                     } label: {
-                        Label(
-                            space.isShared ? "Manage Sharing" : "Invite Spouse",
-                            systemImage: space.isShared ? "person.2.fill" : "person.badge.plus"
-                        )
+                        Label("Invite Spouse", systemImage: "person.badge.plus")
                     }
-                    .disabled(!sharingService.iCloudAvailable)
-                } header: {
-                    Text("Sharing")
-                } footer: {
-                    Text("Share your household with your spouse so you can both view and edit lists together.")
-                }
 
-                // Participants
-                if !sharingService.participants.isEmpty {
-                    Section("People with Access") {
-                        ForEach(sharingService.participants, id: \.userIdentity.userRecordID) { participant in
-                            ParticipantRow(participant: participant)
-                        }
+                    Button {
+                        authService.signOut()
+                    } label: {
+                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                            .foregroundStyle(.red)
                     }
                 }
 
@@ -104,7 +90,6 @@ struct SettingsView: View {
                         Image(systemName: notificationService.isAuthorized ? "bell.fill" : "bell.slash.fill")
                             .foregroundStyle(notificationService.isAuthorized ? .green : .gray)
                             .frame(width: 32)
-
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Reminders")
                                 .font(.headline)
@@ -113,12 +98,9 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-
                     if !notificationService.isAuthorized {
                         Button {
-                            Task {
-                                await notificationService.requestAuthorization()
-                            }
+                            Task { await notificationService.requestAuthorization() }
                         } label: {
                             Label("Enable Reminders", systemImage: "bell.badge")
                         }
@@ -157,304 +139,37 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
+                    Button("Done") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showingShareSheet) {
-                ShareSpaceView(space: space)
-            }
             .sheet(isPresented: $showingEditSpace) {
-                EditSpaceSheet(space: space)
+                EditSpaceSheet()
+            }
+            .sheet(isPresented: $showingInvite) {
+                InviteMemberView()
             }
             .alert("Delete Household?", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {}
                 Button("Delete", role: .destructive) {
-                    deleteSpace()
+                    Task {
+                        await spaceVM.deleteSpace()
+                        dismiss()
+                    }
                 }
             } message: {
                 Text("This will permanently delete all data in this household. This action cannot be undone.")
             }
-            .task {
-                await sharingService.fetchParticipants(for: space)
-            }
-        }
-    }
-
-    private var sharingStatusIcon: String {
-        switch sharingService.sharingStatus {
-        case .notShared: return "person.slash"
-        case .pendingShare: return "clock"
-        case .shared: return "person.2.fill"
-        case .sharedWithMe: return "person.2.fill"
-        case .error: return "exclamationmark.triangle"
-        }
-    }
-
-    private var sharingStatusColor: Color {
-        switch sharingService.sharingStatus {
-        case .notShared: return .gray
-        case .pendingShare: return .orange
-        case .shared, .sharedWithMe: return .green
-        case .error: return .red
-        }
-    }
-
-    private var sharingStatusText: String {
-        switch sharingService.sharingStatus {
-        case .notShared: return "Not shared yet"
-        case .pendingShare: return "Invitation pending"
-        case .shared: return "Shared with spouse"
-        case .sharedWithMe: return "Shared by spouse"
-        case .error(let message): return message
-        }
-    }
-
-    private func deleteSpace() {
-        viewContext.delete(space)
-        try? viewContext.save()
-        dismiss()
-    }
-}
-
-// MARK: - Participant Row
-struct ParticipantRow: View {
-    let participant: CKShare.Participant
-
-    var body: some View {
-        HStack {
-            Image(systemName: "person.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.blue)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(participantName)
-                    .font(.headline)
-
-                Text(roleText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            // Status indicator
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
-        }
-    }
-
-    private var participantName: String {
-        if let nameComponents = participant.userIdentity.nameComponents {
-            return PersonNameComponentsFormatter().string(from: nameComponents)
-        }
-        return "Unknown"
-    }
-
-    private var roleText: String {
-        switch participant.role {
-        case .owner: return "Owner"
-        case .privateUser: return "Member"
-        case .publicUser: return "Public"
-        case .unknown: return "Unknown"
-        @unknown default: return "Unknown"
-        }
-    }
-
-    private var statusColor: Color {
-        switch participant.acceptanceStatus {
-        case .accepted: return .green
-        case .pending: return .orange
-        case .removed: return .red
-        case .unknown: return .gray
-        @unknown default: return .gray
-        }
-    }
-}
-
-// MARK: - Share Space View
-struct ShareSpaceView: View {
-    @ObservedObject var space: Space
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.managedObjectContext) private var viewContext
-    @EnvironmentObject var sharingService: CloudKitSharingService
-
-    @State private var isSharing = false
-    @State private var errorMessage: String?
-    @State private var showingError = false
-    @State private var showingResetConfirm = false
-
-    var hasExistingShare: Bool {
-        space.isShared
-    }
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                Spacer()
-
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 60))
-                    .foregroundStyle(.blue)
-
-                Text("Share \"\(space.name ?? "Our Home")\"")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
-                if hasExistingShare {
-                    Text("A share has been created. Tap the button below, then tap the **+** button or **Add People** to invite your spouse.")
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 32)
-                } else {
-                    Text("Invite your spouse to share this household. They'll be able to view and edit all lists, chores, and projects.")
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 32)
-                }
-
-                Spacer()
-
-                Button {
-                    presentSharing()
-                } label: {
-                    if isSharing {
-                        HStack {
-                            ProgressView()
-                                .tint(.white)
-                            Text("Preparing...")
-                                .font(.headline)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                    } else {
-                        Text(hasExistingShare ? "Manage Sharing" : "Share via iCloud")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                    }
-                }
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(12)
-                .padding(.horizontal, 32)
-                .disabled(isSharing)
-
-                if hasExistingShare {
-                    Text("Look for the + button to add people")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.orange)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-
-                    Button {
-                        showingResetConfirm = true
-                    } label: {
-                        Text("Reset & Start Over")
-                            .font(.subheadline)
-                            .foregroundStyle(.red)
-                    }
-                    .padding(.top, 8)
-                } else {
-                    Text("Your spouse will receive a notification to accept the invitation")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                }
-
-                Spacer()
-            }
-            .navigationTitle("Share Household")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(isSharing)
-                }
-            }
-            .alert("Sharing Error", isPresented: $showingError) {
-                Button("OK") {
-                    errorMessage = nil
-                }
-            } message: {
-                Text(errorMessage ?? "An unknown error occurred")
-            }
-            .alert("Reset Sharing?", isPresented: $showingResetConfirm) {
-                Button("Cancel", role: .cancel) {}
-                Button("Reset", role: .destructive) {
-                    resetSharing()
-                }
-            } message: {
-                Text("This will remove the current share so you can start fresh.")
-            }
-            .onChange(of: sharingService.errorMessage) { _, newError in
-                if let error = newError {
-                    errorMessage = error
-                    showingError = true
-                    isSharing = false
-                }
-            }
-        }
-    }
-
-    private func presentSharing() {
-        isSharing = true
-        errorMessage = nil
-
-        // Get the root view controller
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootVC = windowScene.windows.first?.rootViewController else {
-            errorMessage = "Could not access the app window"
-            showingError = true
-            isSharing = false
-            return
-        }
-
-        // Find the topmost presented view controller
-        var topVC = rootVC
-        while let presented = topVC.presentedViewController {
-            topVC = presented
-        }
-
-        Task {
-            await sharingService.presentSharingUI(for: space, from: topVC)
-            await MainActor.run {
-                isSharing = false
-            }
-        }
-    }
-
-    private func resetSharing() {
-        space.isShared = false
-        space.shareRecordData = nil
-        try? viewContext.save()
-
-        Task {
-            try? await sharingService.stopSharing(for: space)
         }
     }
 }
 
 // MARK: - Edit Space Sheet
 struct EditSpaceSheet: View {
-    @ObservedObject var space: Space
-    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var spaceVM: SpaceViewModel
     @Environment(\.dismiss) private var dismiss
 
-    @State private var name: String
-    @State private var ownerName: String
-
-    init(space: Space) {
-        self.space = space
-        _name = State(initialValue: space.name ?? "")
-        _ownerName = State(initialValue: space.ownerName ?? "")
-    }
+    @State private var name: String = ""
+    @State private var ownerName: String = ""
 
     var body: some View {
         NavigationStack {
@@ -462,7 +177,6 @@ struct EditSpaceSheet: View {
                 Section {
                     TextField("Household Name", text: $name)
                 }
-
                 Section {
                     TextField("Your Name", text: $ownerName)
                 } footer: {
@@ -472,23 +186,25 @@ struct EditSpaceSheet: View {
             .navigationTitle("Edit Household")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { saveSpace() }
-                        .disabled(name.isEmpty)
+                    Button("Save") {
+                        Task {
+                            await spaceVM.updateSpaceName(name)
+                            if !ownerName.isEmpty {
+                                await spaceVM.updateOwnerName(ownerName)
+                            }
+                            dismiss()
+                        }
+                    }
+                    .disabled(name.isEmpty)
                 }
             }
+            .onAppear {
+                name = spaceVM.space?.name ?? ""
+                ownerName = spaceVM.space?.ownerName ?? ""
+            }
         }
-    }
-
-    private func saveSpace() {
-        space.name = name
-        space.ownerName = ownerName.isEmpty ? "Me" : ownerName
-
-        try? viewContext.save()
-        dismiss()
     }
 }
 
@@ -512,19 +228,5 @@ enum AppearanceMode: String, CaseIterable {
         case .light: return .light
         case .dark: return .dark
         }
-    }
-}
-
-struct SettingsView_Previews: PreviewProvider {
-    static var previews: some View {
-        let context = PersistenceController.preview.container.viewContext
-        let space = Space(context: context)
-        space.id = UUID()
-        space.name = "Our Home"
-        space.ownerName = "Laura"
-
-        return SettingsView(space: space)
-            .environment(\.managedObjectContext, context)
-            .environmentObject(CloudKitSharingService.shared)
     }
 }

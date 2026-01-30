@@ -1,125 +1,78 @@
 import SwiftUI
-import CoreData
 
 struct GroceriesTab: View {
-    @ObservedObject var space: Space
-    @Environment(\.managedObjectContext) private var viewContext
-    @EnvironmentObject var sharingService: CloudKitSharingService
-    @EnvironmentObject var persistenceController: PersistenceController
+    @EnvironmentObject var spaceVM: SpaceViewModel
 
     @State private var showingAddList = false
     @State private var showingSettings = false
 
-    var groceryLists: [GroceryList] {
-        space.groceryListsArray
-    }
-
     var body: some View {
         NavigationStack {
             Group {
-                if groceryLists.isEmpty {
-                    emptyState
+                if spaceVM.groceryLists.isEmpty {
+                    ContentUnavailableView {
+                        Label("No Grocery Lists", systemImage: "cart")
+                    } description: {
+                        Text("Create your first grocery list to get started")
+                    } actions: {
+                        Button("Create List") { showingAddList = true }
+                            .buttonStyle(.borderedProminent)
+                    }
                 } else {
-                    listContent
+                    List {
+                        ForEach(spaceVM.groceryLists) { list in
+                            if let spaceId = spaceVM.spaceId, let listId = list.id {
+                                NavigationLink(destination: GroceryListDetailView(spaceId: spaceId, listId: listId, listName: list.name)) {
+                                    GroceryListRow(list: list)
+                                }
+                            }
+                        }
+                        .onDelete(perform: deleteLists)
+                    }
                 }
             }
             .navigationTitle("Groceries")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showingAddList = true
-                    } label: {
+                    Button { showingAddList = true } label: {
                         Image(systemName: "plus")
                     }
                 }
-
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingSettings = true
-                    } label: {
+                    Button { showingSettings = true } label: {
                         Image(systemName: "gearshape")
                             .font(.body)
                     }
                 }
             }
             .sheet(isPresented: $showingAddList) {
-                AddGroceryListSheet(space: space)
+                AddGroceryListSheet()
             }
             .sheet(isPresented: $showingSettings) {
-                SettingsView(space: space)
+                SettingsView()
             }
-        }
-    }
-
-    @ViewBuilder
-    private var emptyState: some View {
-        ContentUnavailableView {
-            Label("No Grocery Lists", systemImage: "cart")
-        } description: {
-            Text("Create your first grocery list to get started")
-        } actions: {
-            Button("Create List") {
-                showingAddList = true
-            }
-            .buttonStyle(.borderedProminent)
-        }
-    }
-
-    @ViewBuilder
-    private var listContent: some View {
-        List {
-            ForEach(groceryLists) { list in
-                NavigationLink(destination: GroceryListDetailView(groceryList: list)) {
-                    GroceryListRow(groceryList: list)
-                }
-            }
-            .onDelete(perform: deleteLists)
-        }
-        .refreshable {
-            await persistenceController.performManualSync()
         }
     }
 
     private func deleteLists(offsets: IndexSet) {
-        withAnimation {
-            offsets.map { groceryLists[$0] }.forEach(viewContext.delete)
-            try? viewContext.save()
+        for index in offsets {
+            let list = spaceVM.groceryLists[index]
+            Task { await spaceVM.deleteGroceryList(list) }
         }
     }
 }
 
 // MARK: - Grocery List Row
 struct GroceryListRow: View {
-    @ObservedObject var groceryList: GroceryList
+    let list: GroceryListModel
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(groceryList.name ?? "Untitled")
+                Text(list.name)
                     .font(.headline)
-
-                if groceryList.itemsArray.isEmpty {
-                    Text("No items")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("\(groceryList.uncheckedCount) items remaining")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
-
             Spacer()
-
-            if groceryList.checkedCount > 0 {
-                Text("\(groceryList.checkedCount)")
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.green.opacity(0.2))
-                    .foregroundStyle(.green)
-                    .cornerRadius(8)
-            }
         }
         .padding(.vertical, 4)
     }
@@ -127,8 +80,7 @@ struct GroceryListRow: View {
 
 // MARK: - Add Grocery List Sheet
 struct AddGroceryListSheet: View {
-    @ObservedObject var space: Space
-    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var spaceVM: SpaceViewModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var listName = ""
@@ -146,41 +98,18 @@ struct AddGroceryListSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
-                        createList()
+                        Task {
+                            await spaceVM.addGroceryList(name: listName)
+                            dismiss()
+                        }
                     }
                     .disabled(listName.isEmpty)
                 }
             }
         }
-    }
-
-    private func createList() {
-        let newList = GroceryList(context: viewContext)
-        newList.id = UUID()
-        newList.name = listName
-        newList.createdAt = Date()
-        newList.space = space
-
-        try? viewContext.save()
-        dismiss()
-    }
-}
-
-struct GroceriesTab_Previews: PreviewProvider {
-    static var previews: some View {
-        let context = PersistenceController.preview.container.viewContext
-        let space = Space(context: context)
-        space.id = UUID()
-        space.name = "Our Home"
-
-        return GroceriesTab(space: space)
-            .environment(\.managedObjectContext, context)
-            .environmentObject(CloudKitSharingService.shared)
     }
 }

@@ -1,44 +1,32 @@
 import SwiftUI
-import CloudKit
-import UserNotifications
+import FirebaseCore
+import GoogleSignIn
 
 @main
 struct OursListsApp: App {
-    @StateObject private var persistenceController = PersistenceController.shared
-    @StateObject private var sharingService = CloudKitSharingService.shared
+    @StateObject private var authService = AuthenticationService.shared
     @StateObject private var notificationService = NotificationService.shared
     @StateObject private var appState = AppState()
     @AppStorage("appearanceMode") private var appearanceMode: AppearanceMode = .system
 
+    init() {
+        FirebaseApp.configure()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
-                .environment(\.managedObjectContext, persistenceController.container.viewContext)
-                .environmentObject(persistenceController)
-                .environmentObject(sharingService)
+                .environmentObject(authService)
                 .environmentObject(notificationService)
                 .environmentObject(appState)
                 .preferredColorScheme(appearanceMode.colorScheme)
                 .onOpenURL { url in
-                    // Handle CloudKit share acceptance URLs
-                    handleIncomingURL(url)
+                    GIDSignIn.sharedInstance.handle(url)
                 }
                 .task {
-                    // Request notification permissions on first launch
                     await notificationService.requestAuthorization()
                 }
         }
-    }
-
-    private func handleIncomingURL(_ url: URL) {
-        // CloudKit share URLs come through here
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true),
-              components.host == "cloudkit-share" else {
-            return
-        }
-
-        // The share metadata will be fetched by the scene delegate
-        // This is handled in the SceneDelegate for UIKit integration
     }
 }
 
@@ -55,8 +43,6 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(currentSpaceID, forKey: "currentSpaceID")
         }
     }
-
-    @Published var pendingShareMetadata: CKShare.Metadata?
 
     init() {
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
