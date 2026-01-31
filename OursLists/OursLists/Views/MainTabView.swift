@@ -4,41 +4,45 @@ struct MainTabView: View {
     @EnvironmentObject var spaceVM: SpaceViewModel
     @State private var selectedTab = 0
 
+    var overdueCount: Int {
+        spaceVM.chores.filter { $0.isOverdue && !$0.isPaused }.count
+        + spaceVM.reminders.filter { $0.isOverdue && !$0.isPaused }.count
+    }
+
+    var urgentTaskCount: Int {
+        spaceVM.chores.filter { ($0.isOverdue || $0.isDueToday) && !$0.isPaused }.count
+        + spaceVM.reminders.filter { ($0.isOverdue || $0.isDueToday) && !$0.isPaused }.count
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
-            HomeTab(selectedTab: $selectedTab)
+            HomeTab()
                 .tabItem {
-                    Label("Home", systemImage: "house.fill")
+                    Label("Today", systemImage: "house.fill")
                 }
                 .tag(0)
+                .badge(overdueCount)
 
             GroceriesTab()
                 .tabItem {
                     Label("Groceries", systemImage: "cart.fill")
                 }
-                .badge(spaceVM.groceryCount > 0 ? spaceVM.groceryCount : 0)
                 .tag(1)
+                .badge(spaceVM.groceryLists.count)
 
-            ChoresTab()
+            TasksTab()
                 .tabItem {
-                    Label("Chores", systemImage: "checklist")
+                    Label("Tasks", systemImage: "checklist")
                 }
-                .badge(spaceVM.urgentChoreCount > 0 ? spaceVM.urgentChoreCount : 0)
                 .tag(2)
-
-            RemindersTab()
-                .tabItem {
-                    Label("Reminders", systemImage: "bell.fill")
-                }
-                .badge(spaceVM.urgentReminderCount > 0 ? spaceVM.urgentReminderCount : 0)
-                .tag(3)
+                .badge(urgentTaskCount)
 
             ProjectsTab()
                 .tabItem {
                     Label("Projects", systemImage: "folder.fill")
                 }
-                .badge(spaceVM.activeProjectCount > 0 ? spaceVM.activeProjectCount : 0)
-                .tag(4)
+                .tag(3)
+                .badge(spaceVM.activeProjectCount)
         }
     }
 }

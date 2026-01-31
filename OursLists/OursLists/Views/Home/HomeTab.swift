@@ -3,27 +3,23 @@ import SwiftUI
 struct HomeTab: View {
     @EnvironmentObject var spaceVM: SpaceViewModel
     @EnvironmentObject var authService: AuthenticationService
-    @Binding var selectedTab: Int
 
+    @State private var showingSettings = false
     @State private var showingAddGrocery = false
     @State private var showingAddChore = false
     @State private var showingAddReminder = false
     @State private var showingAddProject = false
-    @State private var showingSettings = false
     @State private var showingOverdue = false
     @State private var showingDueToday = false
-    @State private var showingToBuy = false
 
     var overdueTasks: Int {
         spaceVM.chores.filter { $0.isOverdue && !$0.isPaused }.count
+        + spaceVM.reminders.filter { $0.isOverdue && !$0.isPaused }.count
     }
 
     var dueTodayTasks: Int {
         spaceVM.chores.filter { $0.isDueToday && !$0.isPaused }.count
-    }
-
-    var groceryItemsNeeded: Int {
-        spaceVM.groceryLists.count
+        + spaceVM.reminders.filter { $0.isDueToday && !$0.isPaused }.count
     }
 
     var todayChores: [ChoreModel] {
@@ -35,10 +31,20 @@ struct HomeTab: View {
             }
     }
 
+    var todayReminders: [ReminderModel] {
+        spaceVM.reminders
+            .filter { ($0.isOverdue || $0.isDueToday) && !$0.isPaused }
+            .sorted { r1, r2 in
+                if r1.isOverdue != r2.isOverdue { return r1.isOverdue }
+                return (r1.nextDueAt ?? Date()) < (r2.nextDueAt ?? Date())
+            }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
+                    // Welcome header
                     VStack(spacing: 12) {
                         AppIconView(size: 80)
                         VStack(spacing: 4) {
@@ -52,7 +58,8 @@ struct HomeTab: View {
                     }
                     .padding(.top, 20)
 
-                    if overdueTasks > 0 || dueTodayTasks > 0 || groceryItemsNeeded > 0 {
+                    // Stat badges
+                    if overdueTasks > 0 || dueTodayTasks > 0 {
                         HStack(spacing: 16) {
                             if overdueTasks > 0 {
                                 Button { showingOverdue = true } label: {
@@ -66,33 +73,12 @@ struct HomeTab: View {
                                 }
                                 .buttonStyle(.plain)
                             }
-                            if groceryItemsNeeded > 0 {
-                                Button { showingToBuy = true } label: {
-                                    StatBadge(count: groceryItemsNeeded, label: "Lists", color: .blue, icon: "cart.fill")
-                                }
-                                .buttonStyle(.plain)
-                            }
                         }
                         .padding(.horizontal)
                     }
 
-                    VStack(spacing: 16) {
-                        Text("Quick Actions")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            SmallActionButton(title: "Grocery", icon: "cart.badge.plus", color: .green) { showingAddGrocery = true }
-                            SmallActionButton(title: "Chore", icon: "checklist", color: .purple) { showingAddChore = true }
-                            SmallActionButton(title: "Reminder", icon: "bell.badge.fill", color: .orange) { showingAddReminder = true }
-                            SmallActionButton(title: "Project", icon: "folder.badge.plus", color: .blue) { showingAddProject = true }
-                        }
-                        .padding(.horizontal)
-                    }
-
-                    if !todayChores.isEmpty {
+                    // Due Today list
+                    if !todayChores.isEmpty || !todayReminders.isEmpty {
                         VStack(spacing: 12) {
                             HStack {
                                 Text("Due Today")
@@ -105,24 +91,53 @@ struct HomeTab: View {
                                 ForEach(todayChores.prefix(5)) { chore in
                                     TaskQuickRow(chore: chore)
                                 }
+                                ForEach(todayReminders.prefix(5)) { reminder in
+                                    ReminderQuickRow(reminder: reminder)
+                                }
                             }
                             .padding(.horizontal)
                         }
                         .padding(.top, 8)
                     }
 
+                    // Quick add row
+                    VStack(spacing: 8) {
+                        HStack {
+                            Text("Quick Add")
+                                .font(.headline)
+                            Spacer()
+                        }
+                        HStack(spacing: 12) {
+                            SmallActionButton(title: "Grocery", icon: "cart.fill", color: .green) {
+                                showingAddGrocery = true
+                            }
+                            SmallActionButton(title: "Chore", icon: "checklist", color: .purple) {
+                                showingAddChore = true
+                            }
+                            SmallActionButton(title: "Reminder", icon: "bell.fill", color: .orange) {
+                                showingAddReminder = true
+                            }
+                            SmallActionButton(title: "Project", icon: "folder.fill", color: .blue) {
+                                showingAddProject = true
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+
                     Spacer(minLength: 40)
                 }
             }
-            .navigationTitle("Home")
+            .navigationTitle("Today")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showingSettings = true } label: {
-                        Image(systemName: "gearshape")
-                            .font(.body)
+                        Image(systemName: "gearshape.fill")
                     }
                 }
+            }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
             }
             .sheet(isPresented: $showingAddGrocery) {
                 QuickAddGrocerySheet()
@@ -136,19 +151,79 @@ struct HomeTab: View {
             .sheet(isPresented: $showingAddProject) {
                 AddProjectSheet()
             }
-            .sheet(isPresented: $showingSettings) {
-                SettingsView()
-            }
             .sheet(isPresented: $showingOverdue) {
                 OverdueTasksSheet()
             }
             .sheet(isPresented: $showingDueToday) {
                 DueTodayTasksSheet()
             }
-            .sheet(isPresented: $showingToBuy) {
-                ToBuySheet()
-            }
         }
+    }
+}
+
+// MARK: - Small Action Button
+struct SmallActionButton: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(.caption2)
+                    .foregroundStyle(.primary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(color.opacity(0.1))
+            .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Reminder Quick Row
+struct ReminderQuickRow: View {
+    let reminder: ReminderModel
+    @EnvironmentObject var spaceVM: SpaceViewModel
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button {
+                Task { await spaceVM.markReminderDone(reminder) }
+            } label: {
+                Image(systemName: "circle")
+                    .font(.title2)
+                    .foregroundStyle(.green)
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(reminder.title)
+                    .font(.subheadline)
+                Text(reminder.dueDescription)
+                    .font(.caption)
+                    .foregroundStyle(reminder.isOverdue ? .red : .secondary)
+            }
+
+            Spacer()
+
+            Text(reminder.recurrenceEnum.rawValue)
+                .font(.caption2)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.orange.opacity(0.1))
+                .foregroundStyle(.orange)
+                .cornerRadius(6)
+        }
+        .padding(12)
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
     }
 }
 
@@ -175,33 +250,6 @@ struct StatBadge: View {
         .padding(.vertical, 12)
         .background(color.opacity(0.1))
         .cornerRadius(12)
-    }
-}
-
-// MARK: - Small Action Button
-struct SmallActionButton: View {
-    let title: String
-    let icon: String
-    let color: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 22))
-                    .foregroundStyle(color)
-                Text(title)
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.primary)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 70)
-            .background(Color(.systemGray6))
-            .cornerRadius(12)
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -350,7 +398,9 @@ struct QuickAddGrocerySheet: View {
             }
             .onAppear {
                 selectedList = spaceVM.groceryLists.first
-                isItemFieldFocused = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    isItemFieldFocused = true
+                }
             }
         }
     }
@@ -362,7 +412,6 @@ struct QuickAddGrocerySheet: View {
             await spaceVM.addGroceryList(name: trimmedName)
             newListName = ""
             showingCreateList = false
-            // Select the newly created list after a brief delay for listener to update
             try? await Task.sleep(nanoseconds: 500_000_000)
             selectedList = spaceVM.groceryLists.last
             addedItems = []
@@ -392,8 +441,14 @@ struct OverdueTasksSheet: View {
     @EnvironmentObject var spaceVM: SpaceViewModel
     @Environment(\.dismiss) private var dismiss
 
-    var overdueTasks: [ChoreModel] {
+    var overdueChores: [ChoreModel] {
         spaceVM.chores
+            .filter { $0.isOverdue && !$0.isPaused }
+            .sorted { ($0.nextDueAt ?? Date()) < ($1.nextDueAt ?? Date()) }
+    }
+
+    var overdueReminders: [ReminderModel] {
+        spaceVM.reminders
             .filter { $0.isOverdue && !$0.isPaused }
             .sorted { ($0.nextDueAt ?? Date()) < ($1.nextDueAt ?? Date()) }
     }
@@ -401,8 +456,19 @@ struct OverdueTasksSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(overdueTasks) { chore in
-                    TaskRowForSheet(chore: chore, isOverdue: true)
+                if !overdueChores.isEmpty {
+                    Section("Chores") {
+                        ForEach(overdueChores) { chore in
+                            TaskRowForSheet(chore: chore, isOverdue: true)
+                        }
+                    }
+                }
+                if !overdueReminders.isEmpty {
+                    Section("Reminders") {
+                        ForEach(overdueReminders) { reminder in
+                            ReminderRowForSheet(reminder: reminder, isOverdue: true)
+                        }
+                    }
                 }
             }
             .navigationTitle("Overdue")
@@ -421,8 +487,14 @@ struct DueTodayTasksSheet: View {
     @EnvironmentObject var spaceVM: SpaceViewModel
     @Environment(\.dismiss) private var dismiss
 
-    var dueTodayTasks: [ChoreModel] {
+    var dueTodayChores: [ChoreModel] {
         spaceVM.chores
+            .filter { $0.isDueToday && !$0.isPaused }
+            .sorted { ($0.nextDueAt ?? Date()) < ($1.nextDueAt ?? Date()) }
+    }
+
+    var dueTodayReminders: [ReminderModel] {
+        spaceVM.reminders
             .filter { $0.isDueToday && !$0.isPaused }
             .sorted { ($0.nextDueAt ?? Date()) < ($1.nextDueAt ?? Date()) }
     }
@@ -430,8 +502,19 @@ struct DueTodayTasksSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(dueTodayTasks) { chore in
-                    TaskRowForSheet(chore: chore, isOverdue: false)
+                if !dueTodayChores.isEmpty {
+                    Section("Chores") {
+                        ForEach(dueTodayChores) { chore in
+                            TaskRowForSheet(chore: chore, isOverdue: false)
+                        }
+                    }
+                }
+                if !dueTodayReminders.isEmpty {
+                    Section("Reminders") {
+                        ForEach(dueTodayReminders) { reminder in
+                            ReminderRowForSheet(reminder: reminder, isOverdue: false)
+                        }
+                    }
                 }
             }
             .navigationTitle("Due Today")
@@ -483,28 +566,40 @@ struct TaskRowForSheet: View {
     }
 }
 
-// MARK: - To Buy Sheet
-struct ToBuySheet: View {
+// MARK: - Reminder Row for Sheets
+struct ReminderRowForSheet: View {
+    let reminder: ReminderModel
     @EnvironmentObject var spaceVM: SpaceViewModel
-    @Environment(\.dismiss) private var dismiss
+    let isOverdue: Bool
 
     var body: some View {
-        NavigationStack {
-            List {
-                ForEach(spaceVM.groceryLists) { list in
-                    Section(list.name) {
-                        Text("Open Groceries tab to view items")
-                            .foregroundStyle(.secondary)
-                    }
-                }
+        HStack(spacing: 12) {
+            Button {
+                Task { await spaceVM.markReminderDone(reminder) }
+            } label: {
+                Image(systemName: "circle")
+                    .font(.title2)
+                    .foregroundStyle(.green)
             }
-            .navigationTitle("Grocery Lists")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(reminder.title)
+                    .font(.subheadline)
+                Text(reminder.dueDescription)
+                    .font(.caption)
+                    .foregroundStyle(isOverdue ? .red : .secondary)
             }
+
+            Spacer()
+
+            Text(reminder.recurrenceEnum.rawValue)
+                .font(.caption2)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.orange.opacity(0.1))
+                .foregroundStyle(.orange)
+                .cornerRadius(6)
         }
     }
 }

@@ -1,10 +1,25 @@
 import SwiftUI
 
 struct ChoresTab: View {
+    @State private var showingAddChore = false
+
+    var body: some View {
+        NavigationStack {
+            ChoresContent()
+                .navigationTitle("Chores")
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showingAddChore = true } label: { Image(systemName: "plus") }
+                    }
+                }
+                .sheet(isPresented: $showingAddChore) { AddChoreSheet() }
+        }
+    }
+}
+
+struct ChoresContent: View {
     @EnvironmentObject var spaceVM: SpaceViewModel
 
-    @State private var showingAddChore = false
-    @State private var showingSettings = false
     @State private var selectedView: ChoreViewType = .today
     @State private var newChoreTitle = ""
     @FocusState private var isAddFieldFocused: Bool
@@ -32,36 +47,21 @@ struct ChoresTab: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                Picker("View", selection: $selectedView) {
-                    ForEach(ChoreViewType.allCases, id: \.self) { type in
-                        Text(type.rawValue).tag(type)
-                    }
+        VStack(spacing: 0) {
+            Picker("View", selection: $selectedView) {
+                ForEach(ChoreViewType.allCases, id: \.self) { type in
+                    Text(type.rawValue).tag(type)
                 }
-                .pickerStyle(.segmented)
-                .padding()
+            }
+            .pickerStyle(.segmented)
+            .padding()
 
-                Group {
-                    switch selectedView {
-                    case .today: todayView
-                    case .all: allView
-                    }
+            Group {
+                switch selectedView {
+                case .today: todayView
+                case .all: allView
                 }
             }
-            .navigationTitle("Chores")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { showingAddChore = true } label: { Image(systemName: "plus") }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showingSettings = true } label: {
-                        Image(systemName: "gearshape").font(.body)
-                    }
-                }
-            }
-            .sheet(isPresented: $showingAddChore) { AddChoreSheet() }
-            .sheet(isPresented: $showingSettings) { SettingsView() }
         }
     }
 

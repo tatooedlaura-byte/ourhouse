@@ -135,10 +135,10 @@ struct SettingsView: View {
                     Text("This will permanently delete all your lists, chores, and projects.")
                 }
             }
-            .navigationTitle("Household")
+            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }
@@ -153,7 +153,6 @@ struct SettingsView: View {
                 Button("Delete", role: .destructive) {
                     Task {
                         await spaceVM.deleteSpace()
-                        dismiss()
                     }
                 }
             } message: {

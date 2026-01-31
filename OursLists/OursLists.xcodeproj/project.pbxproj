@@ -25,6 +25,7 @@
 		56358E15606A05AE8715DFD6 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D152607FF841B83D4C717E5 /* RootView.swift */; };
 		566C68C71139A0C0BB0ABF3A /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 2BD59E0C4CA77BB046B91A56 /* FirebaseAuth */; };
 		60004130F9744463C87859C6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 649457B96C34FDA48C58711F /* Assets.xcassets */; };
+		700F5077C924AE6C0A6054B6 /* TasksTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8409A7F46FB130FFDB4169EA /* TasksTab.swift */; };
 		850CBDC4E4C839637456FFAC /* GroceryListDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8CAF906AA29B4CCA49CF716 /* GroceryListDetailView.swift */; };
 		8899AF2731084D435963B408 /* HomeTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD418A4EA840DAC91D4E0712 /* HomeTab.swift */; };
 		B987012389A920A1D10DD573 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2C91F5E6224B3F83AF6124 /* OnboardingView.swift */; };
@@ -54,6 +55,7 @@
 		7A2C91F5E6224B3F83AF6124 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		7B79841AC0C3B5D8BB6B0FD2 /* ProjectsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsTab.swift; sourceTree = "<group>"; };
 		7D152607FF841B83D4C717E5 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		8409A7F46FB130FFDB4169EA /* TasksTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksTab.swift; sourceTree = "<group>"; };
 		8F2EBEDBE028F736F0CF954F /* AuthenticationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationService.swift; sourceTree = "<group>"; };
 		9492A69331E6C21A9C69F099 /* FirestoreModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirestoreModels.swift; sourceTree = "<group>"; };
 		9D588FD5B98F1AB15CA1E486 /* OursLists.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = OursLists.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -184,6 +186,14 @@
 			path = Onboarding;
 			sourceTree = "<group>";
 		};
+		A32BA3EDE91A2444755F3453 /* Tasks */ = {
+			isa = PBXGroup;
+			children = (
+				8409A7F46FB130FFDB4169EA /* TasksTab.swift */,
+			);
+			path = Tasks;
+			sourceTree = "<group>";
+		};
 		B7074E7F4C3265B497F85FBB /* Projects */ = {
 			isa = PBXGroup;
 			children = (
@@ -215,6 +225,7 @@
 				B7074E7F4C3265B497F85FBB /* Projects */,
 				675234FFC2B73CE155798446 /* Reminders */,
 				4C5570057B13777E278201DA /* Settings */,
+				A32BA3EDE91A2444755F3453 /* Tasks */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -349,6 +360,7 @@
 				2B8A5E3B72687103B280562C /* SettingsView.swift in Sources */,
 				224DFFE67FCA8576036899B3 /* SignInView.swift in Sources */,
 				5621BDB6750D1DC59F431750 /* SpaceViewModel.swift in Sources */,
+				700F5077C924AE6C0A6054B6 /* TasksTab.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,10 +1,26 @@
 import SwiftUI
 
 struct RemindersTab: View {
+    @State private var showingAddReminder = false
+
+    var body: some View {
+        NavigationStack {
+            RemindersContent()
+                .navigationTitle("Reminders")
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showingAddReminder = true } label: { Image(systemName: "plus") }
+                    }
+                }
+                .sheet(isPresented: $showingAddReminder) { AddReminderSheet() }
+        }
+    }
+}
+
+struct RemindersContent: View {
     @EnvironmentObject var spaceVM: SpaceViewModel
 
     @State private var showingAddReminder = false
-    @State private var showingSettings = false
     @State private var newReminderTitle = ""
     @FocusState private var isAddFieldFocused: Bool
 
@@ -22,72 +38,58 @@ struct RemindersTab: View {
     var pausedReminders: [ReminderModel] { spaceVM.reminders.filter { $0.isPaused } }
 
     var body: some View {
-        NavigationStack {
-            List {
+        List {
+            Section {
+                HStack {
+                    TextField("Add reminder...", text: $newReminderTitle)
+                        .focused($isAddFieldFocused)
+                        .onSubmit { quickAddReminder() }
+                    if !newReminderTitle.isEmpty {
+                        Button { quickAddReminder() } label: {
+                            Image(systemName: "plus.circle.fill").foregroundStyle(.orange)
+                        }
+                    }
+                }
+            }
+
+            if reminders.isEmpty && pausedReminders.isEmpty {
                 Section {
-                    HStack {
-                        TextField("Add reminder...", text: $newReminderTitle)
-                            .focused($isAddFieldFocused)
-                            .onSubmit { quickAddReminder() }
-                        if !newReminderTitle.isEmpty {
-                            Button { quickAddReminder() } label: {
-                                Image(systemName: "plus.circle.fill").foregroundStyle(.orange)
-                            }
-                        }
+                    Text("Add reminders for monthly bills, pet meds, filter changes")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if !upcomingReminders.isEmpty {
+                Section("Coming Up") {
+                    ForEach(upcomingReminders) { reminder in
+                        ReminderRow(reminder: reminder)
                     }
                 }
+            }
 
-                if reminders.isEmpty && pausedReminders.isEmpty {
-                    Section {
-                        Text("Add reminders for monthly bills, pet meds, filter changes")
-                            .foregroundStyle(.secondary)
+            if !reminders.isEmpty {
+                Section("All Reminders") {
+                    ForEach(reminders) { reminder in
+                        ReminderRow(reminder: reminder)
                     }
-                }
-
-                if !upcomingReminders.isEmpty {
-                    Section("Coming Up") {
-                        ForEach(upcomingReminders) { reminder in
-                            ReminderRow(reminder: reminder)
-                        }
-                    }
-                }
-
-                if !reminders.isEmpty {
-                    Section("All Reminders") {
-                        ForEach(reminders) { reminder in
-                            ReminderRow(reminder: reminder)
-                        }
-                        .onDelete { offsets in
-                            for i in offsets {
-                                Task { await spaceVM.deleteReminder(reminders[i]) }
-                            }
-                        }
-                    }
-                }
-
-                if !pausedReminders.isEmpty {
-                    Section("Paused") {
-                        ForEach(pausedReminders) { reminder in
-                            ReminderRow(reminder: reminder)
+                    .onDelete { offsets in
+                        for i in offsets {
+                            Task { await spaceVM.deleteReminder(reminders[i]) }
                         }
                     }
                 }
             }
-            .navigationTitle("Reminders")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { showingAddReminder = true } label: { Image(systemName: "plus") }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showingSettings = true } label: {
-                        Image(systemName: "gearshape").font(.body)
+
+            if !pausedReminders.isEmpty {
+                Section("Paused") {
+                    ForEach(pausedReminders) { reminder in
+                        ReminderRow(reminder: reminder)
                     }
                 }
             }
-            .sheet(isPresented: $showingAddReminder, onDismiss: { newReminderTitle = "" }) {
-                AddReminderSheet(initialTitle: newReminderTitle)
-            }
-            .sheet(isPresented: $showingSettings) { SettingsView() }
+        }
+        .sheet(isPresented: $showingAddReminder, onDismiss: { newReminderTitle = "" }) {
+            AddReminderSheet(initialTitle: newReminderTitle)
         }
     }
 
